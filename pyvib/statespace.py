@@ -9,6 +9,7 @@ from numpy.fft import fft
 from scipy.optimize import least_squares
 from scipy.signal.lti_conversion import abcd_normalize
 from scipy.signal.ltisys import dlsim
+from scipy.signal import StateSpace as spStateSpace
 
 from pyvib.common import lm, mmul_weight, weightfcn
 
@@ -39,7 +40,8 @@ class StateSpace():
         self.dt = dt
         if len(system) == 1:  # TODO fix and isinstance(system[0], StateSpace):
             sys = system[0]
-            if isinstance(sys, StateSpace):
+            if (isinstance(sys, StateSpace) or 
+                isinstance(sys, spStateSpace)):
                 sys = sys.A, sys.B, sys.C, sys.D
 
         if len(sys) == 4:
