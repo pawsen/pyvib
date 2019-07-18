@@ -599,7 +599,7 @@ def jacobian(x0, system, weight=False):
 
     # E∂ₓζ + A(n,n,NT)
     if E.size == 0:
-        FdwyIdx = np.zeros(shape=(*A.shape,n_trans))
+        A_EdwxIdx = np.zeros(shape=(*A.shape,n_trans))
     else:
         A_EdwxIdx = multEdwdx(contrib,system.xd_powers,np.squeeze(system.xd_coeff),
                           E,n)
