@@ -1,0 +1,169 @@
+* Other sysid packages
+this one seems good. Also check out the interface for Slicot.
+https://github.com/python-control/
+There is a book describing the control module
+http://robertobucher.dti.supsi.ch/2016/01/07/python-for-control-purposes/
+
+https://github.com/ilayn/harold
+# minor
+https://github.com/mattjj/py4sid
+https://github.com/alchemyst/Skogestad-Python
+
+* TODO
+- weighting in time domain
+- What to do if unstable models are encountered during subspace optimization
+- detect Unstable models in pnlss optim by comparing output with new data
+- Estimation of initial state x0, u0
+- multisine generation seems suspicious (especially the returned lines)
+- subspace expects normalized frequency vector
+- tests
+- documentation
+- check all todo's in code
+- cleanup code
+  https://www.reddit.com/r/Python/comments/82hgzm/any_advantages_of_flake8_over_pylint/dvbbgv5
+* Docs
+Some examples of numpy style docs
+https://www.numpy.org/devdocs/docs/howto_document.html#example-source
+https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_numpy.html
+
+And here's how to do sphinx
+https://lasagne.readthedocs.io/en/latest/
+https://github.com/SamStudio8/gretel/tree/master/docs
+http://www.ericholscher.com/blog/2016/jul/1/sphinx-and-rtd-for-writers/
+https://matplotlib.org/sampledoc/
+
+Create, update or convert docstrings in existing Python files, managing several
+styles.
+pyment -i "numpydoc" -o numpydoc ~/src/vib/vib/fnsi.py
+creates a patch file that can be applied with
+patch -p1 < test.py.patch
+
+
+# add bibtex
+https://github.com/numpy/numpydoc/issues/34
+https://sphinxcontrib-bibtex.readthedocs.io/en/latest/
+
+** Generate docs:
+Guide here: https://samnicholls.net/2016/06/15/how-to-sphinx-readthedocs/
+pip3 install --user Sphinx
+pip3 install --user sphinx_rtd_theme  # theme
+mkdir docs && cd docs
+sphinx-quickstart
+mkdir source
+sphinx-apidoc --separate -f -o modules ../pyvib  # to generate API documentation stubs
+make html
+
+** references between functions
+http://www.sphinx-doc.org/en/master/usage/restructuredtext/domains.html#cross-referencing-python-objects
+fx:
+Se also :py:func:`.common.db`
+
+.. math::
+  W^{3\beta}_{\delta_1 \rho_1 \sigma_2} \approx U^{3\beta}_{\delta_1 \rho_1}
+
+Or inline
+The value of :math:`\omega` is larger than 5.
+
+* Projects to learn from
+https://github.com/sunpy/sunpy
+https://github.com/arvoelke/nengolib
+https://github.com/sintefmath/Splipy
+* pyside2 for qui.
+Choosen over pyqt due to licensing. These two are almost interchangeable. Could
+start with pyqt if docs/examples are nicer.
+
+* Things that are stupid
+** HB
+- Limits for cont. are given in rad/s. Initial periodic solution is given in Hz.
+  In general consisty wrt. rad/s and Hz is very low.
+- Switching direction for BP bifurcations is not fool-proof. Not even close.
+* Timing
+
+import timeit
+
+s1 = """\
+z = np.exp(2j*np.pi*freq)
+"""
+s2 = """\
+zvar = np.empty(freq.shape, dtype=complex)
+zvar.real = np.zeros(freq.shape)
+zvar.imag = 2 * np.pi * freq
+zvar = np.exp(zvar)
+"""
+setup_statement = ';'.join([
+    'import numpy as np',
+    'n = int(1e5)',
+    'freq = np.array(n)',
+])
+
+t1 = timeit.Timer(s1, setup=setup_statement)
+t2 = timeit.Timer(s2, setup=setup_statement)
+print(t1.timeit(number=5))
+print(t2.timeit(number=5))
+
+setup_statement2 = ';'.join([
+    'import numpy as np',
+    'n = int(1e3)',
+    'Hmat = np.ones((n,n)) + 1j*np.ones((n,n))',
+    'Umat = np.ones((n,n)) + 1j*np.ones((n,n))',
+])
+
+s3 = """\
+Hmat = np.hstack([np.real(Hmat), np.imag(Hmat)])
+Umat = np.hstack([np.real(Umat), np.imag(Umat)])
+Z = np.vstack([Hmat, Umat])
+"""
+
+s4 = """\
+Hre = np.hstack([np.real(Hmat), np.imag(Hmat)])
+Ure = np.hstack([np.real(Umat), np.imag(Umat)])
+Z = np.vstack([Hre, Ure])
+"""
+
+s5 = """\
+Z = np.empty((2*n,2*n))
+Z[:n,:n] = Hmat.real
+Z[:n,n:] = Hmat.imag
+Z[n:,:n] = Umat.real
+Z[n:,n:] = Umat.imag
+"""
+
+
+t3 = timeit.Timer(s3, setup=setup_statement2)
+t4 = timeit.Timer(s4, setup=setup_statement2)
+t5 = timeit.Timer(s5, setup=setup_statement2)
+print(t3.timeit(number=3))
+print(t4.timeit(number=3))
+print(t5.timeit(number=3))
+
+
+# import numpy as np
+# n = int(1e3)
+# freq = np.array(n)
+# Emat = np.empty((n,n), dtype=complex)
+# Mmat = np.hstack([np.real(Emat), np.imag(Emat)])
+
+
+import numpy as np
+A = np.random.rand(1000,3,3)
+def slow_inverse(A):
+    Ainv = np.zeros_like(A)
+
+    for i in range(A.shape[0]):
+        Ainv[i] = np.linalg.inv(A[i])
+    return Ainv
+
+def fast_inverse(A):
+    identity = np.identity(A.shape[2], dtype=A.dtype)
+    Ainv = np.zeros_like(A)
+
+    for i in range(A.shape[0]):
+        Ainv[i] = np.linalg.solve(A[i], identity)
+    return Ainv
+
+%timeit -n 20 aI11 = slow_inverse(A)
+%timeit -n 20 aI11 = fast_inverse(A)
+* homepage
+examples
+https://ibotpeaches.github.io/Apktool/
+https://github.com/iBotPeaches/Apktool/tree/gh-pages
