@@ -11,8 +11,7 @@ from scipy.signal.lti_conversion import abcd_normalize
 from scipy.signal.ltisys import dlsim
 from scipy.signal import StateSpace as spStateSpace
 
-from pyvib.common import lm, mmul_weight, weightfcn
-
+from .common import lm, mmul_weight, weightfcn
 from .lti_conversion import discrete2cont, ss2phys
 from .modal import modal_ac
 
@@ -290,8 +289,8 @@ class NonlinearStateSpace(StateSpace):
 
     @property
     def npar(self):
-        xact = self.xactive
-        yact = self.yactive
+        xact = self.nlx.active
+        yact = self.nly.active
         ne = len(xact)
         nf = len(yact)
         n, m, p = self.n, self.m, self.p
@@ -339,8 +338,8 @@ class NonlinearStateSpace(StateSpace):
         """Extract state space from from flattened array"""
         n, m, p = self.n, self.m, self.p
         # index of active elements
-        xact = self.xactive
-        yact = self.yactive
+        xact = self.nlx.active
+        yact = self.nly.active
         ne = len(xact)
         nf = len(yact)
 
@@ -356,8 +355,8 @@ class NonlinearStateSpace(StateSpace):
 
     def flatten(self):
         """Returns the state space as flattened array"""
-        xact = self.xactive
-        yact = self.yactive
+        xact = self.nlx.active
+        yact = self.nly.active
         ne = len(xact)
         nf = len(yact)
         n, m, p = self.n, self.m, self.p

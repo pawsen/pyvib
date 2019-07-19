@@ -22,7 +22,7 @@ class Polynomial_x(Nonlinear_Element):
 
     def fnl(self, x,y,u):
         w = self.w
-        x = np.atleast_2d(x)
+        x = np.atleast_1d(x)
         # displacement of dofs attached to nl
         xnl = np.atleast_2d(np.inner(w, x))  # (n_nx, ns)
         f = np.prod(xnl.T**self.exponent, axis=1)
@@ -34,11 +34,11 @@ class Polynomial_x(Nonlinear_Element):
 
     def dfdx(self,x,y,u):
         w = self.w
-        x = np.atleast_2d(x)
+        x = np.atleast_1d(x)
         xnl = np.inner(w, x)
         # same as np.outer when we do w.T
         dfdx = self.exponent[:,None] * xnl**(self.exponent-1) * w.T # (n, ns)
-        return dfdx.T
+        return dfdx
     
     @property
     def active(self):
@@ -91,7 +91,7 @@ class Polynomial(Nonlinear_Element):
         f: ndarray (ns,)
         """
         w = self.w
-        y = np.atleast_2d(y)
+        y = np.atleast_1d(y)
         # displacement of dofs attached to nl
         ynl = np.atleast_2d(np.inner(w, y)) # maybe y.T  # (n_ny, ns)
         f = np.prod(ynl.T**self.exponent, axis=1)
@@ -108,8 +108,8 @@ class Polynomial(Nonlinear_Element):
         dfdy (p,ns)  # should be (p, n_nx, ns)
         """
         w = self.w
-        y = np.atleast_2d(y)
-        ynl = np.inner(w, y.T)
+        y = np.atleast_1d(y)
+        ynl = np.inner(w, y)
         # same as np.outer when we do w.T
         dfdy = self.exponent[:,None] * ynl**(self.exponent-1) * w.T # (p, ns)
         return dfdy
@@ -193,13 +193,13 @@ class NLS(object):
             return np.array([])
 
         y = np.atleast_2d(y)
-        ns = y.shape[1]
+        ns = y.shape[0]
         fnl = np.empty((self.n_nl,ns))
         for i, nl in enumerate(self.nls):
             fnl[i] = nl.fnl(x,y,u)
 
         # remove last dim if ns = 1
-        return fnl.squeeze(-1)
+        return fnl #.squeeze(-1)
     
     def dfdy(self,x,y,u):
         """
@@ -213,16 +213,20 @@ class NLS(object):
             return np.array([])
 
         y = np.atleast_2d(y)
-        p,ns = y.shape
-#        dfdy = np.empty((self.n_ny,p,ns))
-#        for i, nl in enumerate(self.nls):
-#            dfdy[i] = nl.dfdy(x,y,u)
-#
-        dfdy = []
+        ns,p = y.shape
+        dfdy = np.empty((self.n_ny,p,ns))
+        i = 0
         for nl in self.nls:
-            dfdy.extend(nl.dfdy(x,y,u))
+            tmp = nl.dfdy(x,y,u)
+            if tmp.size:
+                dfdy[i] = tmp
+                i += 1
+#
+#        dfdy = []
+#        for nl in self.nls:
+#            dfdy.extend(nl.dfdy(x,y,u))
         
-        return np.asarray(dfdy)  #.squeeze(-1)
+        return dfdy  #.squeeze(-1)
 
     def dfdx(self,x,y,u):
         """
@@ -235,12 +239,16 @@ class NLS(object):
             return np.array([])
 
         x = np.atleast_2d(x)
-        n,ns = x.shape
-        dfdx = []
+        ns,n = x.shape
+        dfdx = np.empty((self.n_nx,n,ns))
+        i = 0
         for nl in self.nls:
-            dfdx.extend(nl.dfdx(x,y,u))
+            tmp = nl.dfdx(x,y,u)
+            if tmp.size:
+                dfdx[i] = tmp
+                i += 1
         
-        return np.asarray(dfdx)  #.squeeze(-1)
+        return dfdx
 
 
 

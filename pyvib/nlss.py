@@ -87,18 +87,18 @@ def dnlsim(system, u, t=None, x0=None):
     for i in range(0, out_samples - 1):
         # Output equation y(t) = C*x(t) + D*u(t) + F*j(t)
         # TODO jvec: must not depend on y!
-        jvec = system.nly.fnl(xout[i],0,u_dt[i])
+        jvec = system.nly.fnl(xout[i],0,u_dt[i]).squeeze()
         yout[i, :] = (np.dot(system.C, xout[i, :]) +
                       np.dot(system.D, u_dt[i, :]) + 
                       np.dot(system.F, jvec))
         # State equation x(t+1) = A*x(t) + B*u(t) + E*zeta(y(t),ẏ(t))
-        hvec = system.nlx.fnl(xout[i, :],yout[i, :],u_dt[i, :])
+        hvec = system.nlx.fnl(xout[i, :],yout[i, :],u_dt[i, :]).squeeze()
         xout[i+1, :] = (np.dot(system.A, xout[i, :]) +
                         np.dot(system.B, u_dt[i, :]) +
                         np.dot(system.E, hvec))
 
     # Last point
-    jvec = system.nly.fnl(xout[-1, :],0,u_dt[-1, :])
+    jvec = system.nly.fnl(xout[-1, :],0,u_dt[-1, :]).squeeze()
     yout[-1, :] = (np.dot(system.C, xout[-1, :]) +
                    np.dot(system.D, u_dt[-1, :]) +
                    np.dot(system.F, jvec))
@@ -122,64 +122,93 @@ def jacobian(x0, system, weight=False):
     """
 
     n, m, p = system.n, system.m, system.p
-    R, npp = system.signal.R, system.signal.npp
+    #R, npp = system.signal.R, system.signal.npp
+    R, npp = system.R, system.npp
 
     # total number of points
     ns = R*npp
-    # without_T2 = system.without_T2
+    # TODO without_T2 = system.without_T2
 
     # Collect states and outputs with prepended transient sample
     y_trans = system.y_mod[system.idx_trans]
     x_trans = system.x_mod[system.idx_trans]
-    u_trans = system.signal.um[system.idx_trans]
+    #u_trans = system.signal.um[system.idx_trans]
+    u_trans = system.um[system.idx_trans]
     nts = u_trans.shape[0]  # nts: number of total samples(including transient)
     
     A, B, C, D, E, F = system.extract(x0)
-    # split E in x- and y depedent part
+    # split E in x- and y dependent part
     G = E[:,system.nlx.idy]
     E = E[:,system.nlx.idx]
     
     fnl = system.nlx.fnl(x_trans,y_trans,u_trans)  # (n_nx, nts)
-    hvec = fnl[system.nlx.idx].T
-    ivec = fnl[system.nlx.idy].T  # (nts,n_nx)
+    hvec = fnl[system.nlx.idx].T  # (nts, nlx.n_nx)
+    ivec = fnl[system.nlx.idy].T  # (nts, nlx.n_ny)
     jvec = system.nly.fnl(x_trans,y_trans,u_trans).T  # (nts, n_ny)
+    
+    # derivatives of nonlinear functions wrt x or y
+    # (n_nx,n,ns)
+    dhdx = system.nlx.dfdx(x_trans,y_trans,u_trans)
+    didy = system.nlx.dfdy(x_trans,y_trans,u_trans)
+    djdx = system.nly.dfdy(x_trans,y_trans,u_trans)
+    
+    if E.size == 0:
+        A_Edhdx = np.zeros(shape=(*A.shape,nts))
+    else:
+        A_Edhdx = np.einsum('ij,jkl->ikl',E,dhdx)  # (n,n,nts)
+    if G.size == 0:
+        Gdidy = np.zeros(shape=(*A.shape,nts))
+    else:
+        Gdidy = np.einsum('ij,jkl->ikl',G,didy)  # (n,p,nts)
+    if F.size == 0:
+        C_Fdjdx = np.zeros(shape=(*C.shape,nts))
+    else:
+        C_Fdjdx = np.einsum('ij,jkl->ikl',F,djdx)  # (p,n,nts)
+    A_Edhdx += A[...,None]
+    C_Fdjdx += C[...,None]
     
     # calculate output jacobians wrt state space matrices in output eq
     JC = np.kron(np.eye(p), system.x_mod)  # (p*ns,p*n)
-    JD = np.kron(np.eye(p), system.signal.um)  # (p*ns, p*m)
+    #JD = np.kron(np.eye(p), system.signal.um)  # (p*ns, p*m)
+    JD = np.kron(np.eye(p), system.um)  # (p*ns, p*m)
     if system.nly.yactive.size:
         JF = np.kron(np.eye(p), jvec)  # Jacobian wrt all elements in F
         JF = JF[:,system.nly.yactive]  # all active elements in F. (p*nts,nactiveF)
         JF = JF[system.idx_remtrans]  # (p*ns,nactiveF)
     else:
         JF = np.array([]).reshape(p*ns,0)
-
-    # calculate output jacobians wrt state space matrices in state eq 
-    # E∂ₓζ + A(n,n,nts)
-    if E.size == 0:
-        A_Edhdx = np.zeros(shape=(*A.shape,nts))
-    else:
-        A_Edhdx = multEdwdx(contrib,system.xd_powers,np.squeeze(system.xd_coeff),
-                          E,n)
-    A_Edhdx += A[...,None]
-
-    # F∂ₓη  (p,n,nts)
-    if F.size == 0:
-        C_Fdjdx = np.zeros(shape=(*C.shape,nts))
-    else:
-        C_Fdjdx = multEdwdx(contrib,system.yd_powers,np.squeeze(system.yd_coeff),
-                  F,n)
-    # Add C to F∂ₓη for all samples at once
-    C_Fdjdx += C[...,None]
     
     # calculate Jacobian by filtering an alternative state-space model
     # reshape so first row of JA is the derivative wrt all elements in A for
     # first time step, first putput, then second output, then next time,...
     JA = element_jacobian(x_trans, A_Edhdx, Gdidy, C_Fdjdx, np.arange(n**2))
     JA = JA.transpose((2,0,1)).reshape((nts*p, n**2))
+    JA = JA[system.idx_remtrans]  # (p*ns,n**2)
 
-    jac = np.hstack((JA, JB, JC, JD, JE, JF))  #[without_T2]
-    npar = jac.shape[1]    
+    JB = element_jacobian(u_trans, A_Edhdx, Gdidy, C_Fdjdx, np.arange(n*m))
+    JB = JB.transpose((2,0,1)).reshape((nts*p, n*m))
+    JB = JB[system.idx_remtrans]  # (p*ns,n*m)
+
+    if system.nlx.xactive.size:
+        JE = element_jacobian(hvec, A_Edhdx, Gdidy, C_Fdjdx, system.nlx.xactive)
+        JE = JE.transpose((2,0,1)).reshape((nts*p, len(system.nlx.xactive)))
+        JE = JE[system.idx_remtrans]  # (p*ns,nactiveE)
+    else:
+        JE = np.array([]).reshape(p*ns,0)
+
+    if system.nlx.yactive.size:
+        JG = element_jacobian(ivec, A_Edhdx, Gdidy, C_Fdjdx, system.nlx.yactive)
+        JG = JG.transpose((2,0,1)).reshape((nts*p, len(system.nlx.yactive)))
+        JG = JG[system.idx_remtrans]  # (p*ns,nactiveE)
+    else:
+        JG = np.array([]).reshape(p*ns,0)
+
+    
+    jac = np.hstack((JA, JB, JC, JD, JE, JG, JF))  # TODO [without_T2]
+    jac = np.hstack((JA, JA))
+    npar = jac.shape[1]
+    
+    return jac
 
 
 def element_jacobian(samples, A_Edhdx, Gdidy, C_Fdjdx, active):
@@ -220,9 +249,10 @@ def element_jacobian(samples, A_Edhdx, Gdidy, C_Fdjdx, active):
 
     """
     # Number of outputs and number of states
-    p, n, nt = A_Edhdx.shape
+    n, n, nt = A_Edhdx.shape
+    p, n, nt = C_Fdjdx.shape
     # number of inputs and number of samples in alternative state-space model
-    npar, nt = samples.shape
+    nt, npar = samples.shape
     nactive = len(active)  # Number of active parameters in A, B, or E
 
     out = np.zeros((p,nactive,nt))
@@ -236,8 +266,8 @@ def element_jacobian(samples, A_Edhdx, Gdidy, C_Fdjdx, active):
         for t in range(0,nt-1):
             # Calculate output alternative state-space model at time t
             out[:,k,t] = C_Fdjdx[:,:,t] @ J
-            J = A_Edhdx[:,:,] @ J + Gdidy[:,:,t] @ out[:,k,t]
-            J[i] += samples[j,t]
+            J = A_Edhdx[:,:,t] @ J + Gdidy[:,:,t] @ out[:,k,t]
+            J[i] += samples[t,j]
         # last time point
         out[:,k,-1] = C_Fdjdx[:,:,t] @ J
 
@@ -265,15 +295,27 @@ poly1 = Polynomial(exponent,w)
 poly2 = Polynomial_x(exponent,w=[0,1])
 poly3 = Polynomial_x(exponent=[2],w=[0,1])
 poly4 = Polynomial(exponent=[5],w=[-1])
+poly5 = Polynomial(exponent=[2],w=[1])
 
-nl_x = NLS([poly1, poly2, poly3, poly4])  # nls in state eq
+nl_x = NLS([poly1, poly2, poly3, poly4,poly5])  # nls in state eq
 nl_y = NLS()       # nls in output eq
 
 nlsys = NLSS(nl_x,nl_y,sys)
 nlsys.output(u=[1,2,3])
 
 
-
+R, npp = 1,10
+x = np.arange(20).reshape(10,2)
+y = np.arange(10).reshape(10,1)
+u = np.ones(10).reshape(10,1)
+nlsys.x_mod = x
+nlsys.y_mod = y
+nlsys.um = u
+nlsys.R, nlsys.npp = R,npp
+nlsys.idx_trans = np.arange(R*npp)
+nlsys.idx_remtrans = np.s_[:]
+x0 = nlsys.flatten()
+jacobian(x0, nlsys)
 ##direction =
 #
 #exponents = [2]
