@@ -13,7 +13,7 @@ class Nonlinear_Element:
 class Polynomial_x(Nonlinear_Element):
     def __init__(self, exponent, w):
         self.w = np.atleast_2d(w)
-        self.exponent = np.array(exponent)
+        self.exponent = np.atleast_1d(exponent)
         # number of nonlinear elements
         self.n_nx = 1
         self.n_ny = 0
@@ -63,7 +63,7 @@ class Polynomial(Nonlinear_Element):
         w = np.array([[1,0,0,0], [0,0,1,0]])
         """
         self.w = np.atleast_2d(w)
-        self.exponent = np.array(exponent)
+        self.exponent = np.atleast_1d(exponent)
         self.structure = structure
         # number of nonlinear elements
         self.n_nx = 0
@@ -154,6 +154,11 @@ class NLS(object):
                 q = p if F matrix is considered
         """
         n_nl = 0
+        # TODO hack; if the same NLS object is used multiple times, this
+        # resets the active count
+        self.active = np.array([],dtype=np.intp)
+        self.xactive = np.array([],dtype=np.intp)
+        self.yactive = np.array([],dtype=np.intp)
         for nl in self.nls:
             nl.set_active(m,n,p,q)
             # convert local index to global index. Active elements in global E
@@ -194,7 +199,11 @@ class NLS(object):
 
         y = np.atleast_2d(y)
         ns = y.shape[0]
-        fnl = np.empty((self.n_nl,ns))
+        if ns == 1:  # TODO another hack!!!
+            fnl = np.empty((self.n_nl))
+        else:
+            fnl = np.empty((self.n_nl,ns))
+        
         for i, nl in enumerate(self.nls):
             fnl[i] = nl.fnl(x,y,u)
 
@@ -209,7 +218,7 @@ class NLS(object):
            If ns=1, returns 2d array
         """
         # return empty array in case of no nonlinearities
-        if self.n_nx == 0:
+        if self.n_ny == 0:
             return np.array([])
 
         y = np.atleast_2d(y)
@@ -235,7 +244,7 @@ class NLS(object):
         dfdx: ndarray (n_nx,n,ns)
            If ns=1, returns 2d array
         """
-        if self.n_ny == 0:
+        if self.n_nx == 0:
             return np.array([])
 
         x = np.atleast_2d(x)

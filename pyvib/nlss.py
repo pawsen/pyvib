@@ -9,6 +9,7 @@ from pyvib.statespace import NonlinearStateSpace, StateSpaceIdent
 from scipy import signal
 from scipy.linalg import solve
 
+# http://www.brendangregg.com/books.html
 
 class NLSS(NonlinearStateSpace, StateSpaceIdent):
     def __init__(self, nlx, nly, *system, **kwargs):
@@ -24,12 +25,17 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
         super().__init__(*sys, **kwargs)
         self.nlx = nlx
         self.nly = nly
-        self.E = np.zeros((self.n, self.nlx.n_nl))
-        self.F = np.zeros((self.p, self.nly.n_nl))
+        if self.E.size == 0:
+            self.E = np.zeros((self.n, self.nlx.n_nl))
+        if self.F.size == 0 and self.nly.n_nl:
+            self.F = np.zeros((self.p, self.nly.n_nl))
         
         # set active elements(if needed) now the system size is known
         nlx.set_active(self.n,self.m,self.p,self.n)
         nly.set_active(self.n,self.m,self.p,self.p)
+        
+    def set_signal(self,signal):
+        self.signal = signal
         
     def output(self, u, t=None, x0=None):
         return dnlsim(self, u, t=t, x0=x0)
@@ -87,18 +93,18 @@ def dnlsim(system, u, t=None, x0=None):
     for i in range(0, out_samples - 1):
         # Output equation y(t) = C*x(t) + D*u(t) + F*j(t)
         # TODO jvec: must not depend on y!
-        jvec = system.nly.fnl(xout[i],0,u_dt[i]).squeeze()
+        jvec = system.nly.fnl(xout[i],0,u_dt[i])
         yout[i, :] = (np.dot(system.C, xout[i, :]) +
                       np.dot(system.D, u_dt[i, :]) + 
                       np.dot(system.F, jvec))
         # State equation x(t+1) = A*x(t) + B*u(t) + E*zeta(y(t),ẏ(t))
-        hvec = system.nlx.fnl(xout[i, :],yout[i, :],u_dt[i, :]).squeeze()
+        hvec = system.nlx.fnl(xout[i, :],yout[i, :],u_dt[i, :])
         xout[i+1, :] = (np.dot(system.A, xout[i, :]) +
                         np.dot(system.B, u_dt[i, :]) +
                         np.dot(system.E, hvec))
 
     # Last point
-    jvec = system.nly.fnl(xout[-1, :],0,u_dt[-1, :]).squeeze()
+    jvec = system.nly.fnl(xout[-1, :],0,u_dt[-1, :])
     yout[-1, :] = (np.dot(system.C, xout[-1, :]) +
                    np.dot(system.D, u_dt[-1, :]) +
                    np.dot(system.F, jvec))
@@ -122,8 +128,10 @@ def jacobian(x0, system, weight=False):
     """
 
     n, m, p = system.n, system.m, system.p
-    #R, npp = system.signal.R, system.signal.npp
-    R, npp = system.R, system.npp
+    try:
+        R, npp = system.signal.R, system.signal.npp
+    except:
+        R, npp = system.R, system.npp
 
     # total number of points
     ns = R*npp
@@ -132,8 +140,10 @@ def jacobian(x0, system, weight=False):
     # Collect states and outputs with prepended transient sample
     y_trans = system.y_mod[system.idx_trans]
     x_trans = system.x_mod[system.idx_trans]
-    #u_trans = system.signal.um[system.idx_trans]
-    u_trans = system.um[system.idx_trans]
+    try:
+        u_trans = system.signal.um[system.idx_trans]
+    except:
+        u_trans = system.um[system.idx_trans]
     nts = u_trans.shape[0]  # nts: number of total samples(including transient)
     
     A, B, C, D, E, F = system.extract(x0)
@@ -157,7 +167,7 @@ def jacobian(x0, system, weight=False):
     else:
         A_Edhdx = np.einsum('ij,jkl->ikl',E,dhdx)  # (n,n,nts)
     if G.size == 0:
-        Gdidy = np.zeros(shape=(*A.shape,nts))
+        Gdidy = np.zeros(shape=(*C.shape[::-1],nts))
     else:
         Gdidy = np.einsum('ij,jkl->ikl',G,didy)  # (n,p,nts)
     if F.size == 0:
@@ -169,8 +179,10 @@ def jacobian(x0, system, weight=False):
     
     # calculate output jacobians wrt state space matrices in output eq
     JC = np.kron(np.eye(p), system.x_mod)  # (p*ns,p*n)
-    #JD = np.kron(np.eye(p), system.signal.um)  # (p*ns, p*m)
-    JD = np.kron(np.eye(p), system.um)  # (p*ns, p*m)
+    try:
+        JD = np.kron(np.eye(p), system.signal.um)  # (p*ns, p*m)
+    except:
+        JD = np.kron(np.eye(p), system.um)  # (p*ns, p*m)
     if system.nly.yactive.size:
         JF = np.kron(np.eye(p), jvec)  # Jacobian wrt all elements in F
         JF = JF[:,system.nly.yactive]  # all active elements in F. (p*nts,nactiveF)
@@ -205,7 +217,6 @@ def jacobian(x0, system, weight=False):
 
     
     jac = np.hstack((JA, JB, JC, JD, JE, JG, JF))  # TODO [without_T2]
-    jac = np.hstack((JA, JA))
     npar = jac.shape[1]
     
     return jac
@@ -275,47 +286,47 @@ def element_jacobian(samples, A_Edhdx, Gdidy, C_Fdjdx, active):
 
 
 # test linear system
-m = 1
-k = 2
-d = 3
-fex = 1
-dt = 0.1
-
-# cont. time formulation
-A = np.array([[0, 1],[-k/m, -d/m]])
-B = np.array([[0], [fex/m]])
-C = np.array([[1, 0]])
-D = np.array([[0]])
-sys = signal.StateSpace(A, B, C, D).to_discrete(dt)
-
-# add polynomial in state eq
-exponent = [3]
-w = [1]  # need to be same length as number of ouputs
-poly1 = Polynomial(exponent,w)
-poly2 = Polynomial_x(exponent,w=[0,1])
-poly3 = Polynomial_x(exponent=[2],w=[0,1])
-poly4 = Polynomial(exponent=[5],w=[-1])
-poly5 = Polynomial(exponent=[2],w=[1])
-
-nl_x = NLS([poly1, poly2, poly3, poly4,poly5])  # nls in state eq
-nl_y = NLS()       # nls in output eq
-
-nlsys = NLSS(nl_x,nl_y,sys)
-nlsys.output(u=[1,2,3])
-
-
-R, npp = 1,10
-x = np.arange(20).reshape(10,2)
-y = np.arange(10).reshape(10,1)
-u = np.ones(10).reshape(10,1)
-nlsys.x_mod = x
-nlsys.y_mod = y
-nlsys.um = u
-nlsys.R, nlsys.npp = R,npp
-nlsys.idx_trans = np.arange(R*npp)
-nlsys.idx_remtrans = np.s_[:]
-x0 = nlsys.flatten()
-jacobian(x0, nlsys)
+#m = 1
+#k = 2
+#d = 3
+#fex = 1
+#dt = 0.1
+#
+## cont. time formulation
+#A = np.array([[0, 1],[-k/m, -d/m]])
+#B = np.array([[0], [fex/m]])
+#C = np.array([[1, 0]])
+#D = np.array([[0]])
+#sys = signal.StateSpace(A, B, C, D).to_discrete(dt)
+#
+## add polynomial in state eq
+#exponent = [3]
+#w = [1]  # need to be same length as number of ouputs
+#poly1 = Polynomial(exponent,w)
+#poly2 = Polynomial_x(exponent,w=[0,1])
+#poly3 = Polynomial_x(exponent=[2],w=[0,1])
+#poly4 = Polynomial(exponent=[5],w=[-1])
+#poly5 = Polynomial(exponent=[2],w=[1])
+#
+#nl_x = NLS([poly1, poly2, poly3, poly4,poly5])  # nls in state eq
+#nl_y = NLS()       # nls in output eq
+#
+#nlsys = NLSS(nl_x,nl_y,sys)
+#nlsys.output(u=[1,2,3])
+#
+#
+#R, npp = 1,10
+#x = np.arange(20).reshape(10,2)
+#y = np.arange(10).reshape(10,1)
+#u = np.ones(10).reshape(10,1)
+#nlsys.x_mod = x
+#nlsys.y_mod = y
+#nlsys.um = u
+#nlsys.R, nlsys.npp = R,npp
+#nlsys.idx_trans = np.arange(R*npp)
+#nlsys.idx_remtrans = np.s_[:]
+#x0 = nlsys.flatten()
+#jacobian(x0, nlsys)
 ##direction =
 #
 #exponents = [2]

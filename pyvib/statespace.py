@@ -15,7 +15,6 @@ from .common import lm, mmul_weight, weightfcn
 from .lti_conversion import discrete2cont, ss2phys
 from .modal import modal_ac
 
-
 def _atleast_2d_or_none(arg):
     if arg is not None:
         return np.atleast_2d(arg)
@@ -37,11 +36,12 @@ class StateSpace():
         self._A, self._B, self._C, self._D = [None]*4
         self.Ac, self.Bc = [None]*2
         self.dt = dt
+        # flag = False
         if len(system) == 1:  # TODO fix and isinstance(system[0], StateSpace):
             sys = system[0]
-            if (isinstance(sys, StateSpace) or 
-                isinstance(sys, spStateSpace)):
-                sys = sys.A, sys.B, sys.C, sys.D
+            #if (isinstance(sys, StateSpace) or 
+            #    isinstance(sys, spStateSpace)):
+            sys = sys.A, sys.B, sys.C, sys.D
 
         if len(sys) == 4:
             self.A, self.B, self.C, self.D = abcd_normalize(*sys)
@@ -384,7 +384,7 @@ class StateSpaceIdent():
         # TODO maybe divide by 2 to match scipy's implementation of minpack
         return np.dot(err, err)
 
-    def optimize(self, method=None, weight=True, info=2, nmax=50, lamb=None,
+    def optimize(self, method=None, weight=False, info=2, nmax=50, lamb=None,
                  ftol=1e-12, xtol=1e-12, gtol=1e-12, copy=False):
         """Optimize the estimated the nonlinear state space matrices"""
         if weight is True:
