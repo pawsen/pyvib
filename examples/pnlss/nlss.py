@@ -11,7 +11,7 @@ from pyvib.frf import covariance
 from pyvib.nlss import NLSS
 from pyvib.signal import Signal
 from pyvib.subspace import Subspace
-from pyvib.nonlinear_elements import Polynomial, NLS, Polynomial_x
+from pyvib.nonlinear_elements import NLS, Polynomial, Polynomial_x, Pnlss
 
 from copy import deepcopy
 
@@ -49,31 +49,30 @@ E = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03],
 #               0.21129849, 0.00030216, 0.03299013, 0.02058325, -0.09202439,
 #               -0.0380775]])
 F = np.array([])
-F = np.array([[-0.00867042, -0.00636662]])
+nly = None
+#F = np.array([[-0.00867042, -0.00636662]])
 
 E = np.array([[1.88130305e-01, -2.70291900e-01],
               [-5.35196110e-01, -3.66250013e-01]])
 
-poly1 = Polynomial(exponent=2,w=1)
-poly2 = Polynomial(exponent=3,w=1)
-poly3 = Polynomial(exponent=4,w=1)
+poly1y = Polynomial(exponent=2,w=1)
+poly2y = Polynomial(exponent=3,w=1)
+poly3y = Polynomial(exponent=4,w=1)
 
 poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
 poly3x = Polynomial_x(exponent=4,w=[0,1])
 
-#poly4 = Polynomial(exponent=[5],w=[-1])
-#poly5 = Polynomial(exponent=[2],w=[1])
 
-#nl_x = NLS([poly1, poly2])  #, poly3])  # nls in state eq
-nlx = NLS([poly2, poly1])  #, poly3])  # nls in state eq
-nly = NLS([poly1x,poly2x])
+nlx = NLS([poly2x, poly1y])  #, poly3])  # nls in state eq
+#nly = NLS([poly1x,poly2x])
 
 #E = np.array([[1.88130305e-01],
 #              [-5.35196110e-01]])
-# nl_x = NLS([poly1])  # nls in state eq
+#nlx = NLS([poly1])  # nls in state eq
 #E = np.array([])
 #nlx = None
+
 # No nls in output eq
 true_model = NLSS(A, B, C, D, E, F)
 true_model.add_nl(nlx=nlx, nly=nly)
@@ -93,51 +92,52 @@ m = 1         # number of inputs
 p = 1         # number of outputs
 fs = 1        # normalized sampling rate
 
-# get predictable random numbers. https://dilbert.com/strip/2001-10-25
-np.random.seed(10)
-# shape of u from multisine: (R,P*npp)
-u, lines, freq = multisine(N=npp, P=P, R=R, lines=kind, rms=RMSu)
-# if multiple input is required, this will copy u m times
-
-# Transient: Add one period before the start of each realization. To generate
-# steady state data.
-T1 = np.r_[npp, np.r_[0:(R-1)*P*npp+1:P*npp]]
-_, y, _ = true_model.simulate(u.ravel(), T1=T1)
-u = u.reshape((R,P,npp)).transpose((2,0,1))[:,None]  # (npp,m,R,P)
-y = y.reshape((R,P,npp)).transpose((2,0,1))[:,None]
-
-# Add colored noise to the output. randn generate white noise
-if add_noise:
+if True:
+    # get predictable random numbers. https://dilbert.com/strip/2001-10-25
     np.random.seed(10)
-    noise = 1e-3*np.std(y[:,-1,-1]) * np.random.randn(*y.shape)
-    # Do some filtering to get colored noise
-    noise[1:-2] += noise[2:-1]
-    y += noise
-
-## START of Identification ##
-# partitioning the data. Use last period of two last realizations.
-# test for performance testing and val for model selection
-utest = u[:,:,-1,-1]
-ytest = y[:,:,-1,-1]
-uval = u[:,:,-2,-1]
-yval = y[:,:,-2,-1]
-# all other realizations are used for estimation
-uest = u[...,:-2,:]
-yest = y[...,:-2,:]
-# noise estimate over periods. This sets the performace limit for the estimated
-# model
-covY = covariance(yest)
-Pest = yest.shape[-1]
-
-# create signal object
-sig = Signal(uest,yest,fs=fs)
-sig.lines = lines
-# plot periodicity for one realization to verify data is steady state
-# sig.periodicity()
-# Calculate BLA, total- and noise distortion. Used for subspace identification
-sig.bla()
-# average signal over periods. Used for training of PNLSS model
-um, ym = sig.average()
+    # shape of u from multisine: (R,P*npp)
+    u, lines, freq = multisine(N=npp, P=P, R=R, lines=kind, rms=RMSu)
+    # if multiple input is required, this will copy u m times
+    
+    # Transient: Add one period before the start of each realization. To generate
+    # steady state data.
+    T1 = np.r_[npp, np.r_[0:(R-1)*P*npp+1:P*npp]]
+    _, y, _ = true_model.simulate(u.ravel(), T1=T1)
+    u = u.reshape((R,P,npp)).transpose((2,0,1))[:,None]  # (npp,m,R,P)
+    y = y.reshape((R,P,npp)).transpose((2,0,1))[:,None]
+    
+    # Add colored noise to the output. randn generate white noise
+    if add_noise:
+        np.random.seed(10)
+        noise = 1e-3*np.std(y[:,-1,-1]) * np.random.randn(*y.shape)
+        # Do some filtering to get colored noise
+        noise[1:-2] += noise[2:-1]
+        y += noise
+    
+    ## START of Identification ##
+    # partitioning the data. Use last period of two last realizations.
+    # test for performance testing and val for model selection
+    utest = u[:,:,-1,-1]
+    ytest = y[:,:,-1,-1]
+    uval = u[:,:,-2,-1]
+    yval = y[:,:,-2,-1]
+    # all other realizations are used for estimation
+    uest = u[...,:-2,:]
+    yest = y[...,:-2,:]
+    # noise estimate over periods. This sets the performace limit for the estimated
+    # model
+    covY = covariance(yest)
+    Pest = yest.shape[-1]
+    
+    # create signal object
+    sig = Signal(uest,yest,fs=fs)
+    sig.lines = lines
+    # plot periodicity for one realization to verify data is steady state
+    # sig.periodicity()
+    # Calculate BLA, total- and noise distortion. Used for subspace identification
+    sig.bla()
+    # average signal over periods. Used for training of PNLSS model
+    um, ym = sig.average()
 
 # model orders and Subspace dimensioning parameter
 nvec = [2,3]
@@ -177,8 +177,11 @@ poly3x = Polynomial_x(exponent=4,w=[0,1])
 #nlx2 = NLS([poly2x,poly1y,poly3y])  #,poly3])
 nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
 nly2 = NLS([poly1x,poly2x])
+#nlx2 = NLS([poly2x, poly1y])
 
-# nlx2 = None
+#nlx2 = NLS([Pnlss('x', 2, 'full')])
+
+nly2 = None
 
 model = NLSS(linmodel)
 model.add_nl(nlx=nlx2, nly=nly2)
@@ -186,7 +189,7 @@ model.add_nl(nlx=nlx2, nly=nly2)
 #model.nlterms('y', [2,3], 'full')
 model.set_signal(sig)
 model.transient(T1)
-model.optimize(lamb=100, weight=weight, nmax=100)
+model.optimize(lamb=100, weight=weight, nmax=200)
 
 # get best model on validation data. Change Transient settings, as there is
 # only one realization

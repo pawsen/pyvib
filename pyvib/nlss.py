@@ -230,9 +230,9 @@ def jacobian(x0, system, weight=False):
         JD = np.kron(np.eye(p), system.signal.um)  # (p*ns, p*m)
     except:
         JD = np.kron(np.eye(p), system.um)  # (p*ns, p*m)
-    if system.nly.active.size:
+    if system.nly.xactive.size:
         JF = np.kron(np.eye(p), jvec)  # Jacobian wrt all elements in F
-        JF = JF[:,system.nly.active]  # all active elements in F. (p*nts,nactiveF)
+        JF = JF[:,system.nly.xactive]  # all active elements in F. (p*nts,nactiveF)
         JF = JF[system.idx_remtrans]  # (p*ns,nactiveF)
     else:
         JF = np.array([]).reshape(p*ns,0)

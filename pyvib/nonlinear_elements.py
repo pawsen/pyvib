@@ -4,10 +4,115 @@
 import numpy as np
 from copy import deepcopy
 
+from pyvib.polynomial import combinations, select_active, poly_deriv, nl_terms
+
+"""Nonlinear functions
+"""
+
+
 class Nonlinear_Element:
     """Bare class
     """
     pass
+
+
+class Pnlss(Nonlinear_Element):
+    """Combinations of monomials in x and u"""
+
+    def __init__(self, eq, degree, structure):
+        """Initialize active nonlinear terms/monomials to be optimized"""
+        self.eq = eq
+        self.degree = np.asarray(degree)
+        self.structure = structure
+        self.n_ny = 0
+            
+    @property
+    def active(self):
+        return self._active
+    
+    def set_active(self,n,m,p,q):
+        # all possible terms
+        self.powers = combinations(n+m, self.degree)
+        self.n_nx = self.powers.shape[0]
+        self.n_nl = self.n_nx
+        
+        # This is not needed. We can use q. q = n for 'x' and q = p for 'y'
+        if self.eq in ('state', 'x'):
+            active = select_active(self.structure,n,m,n,self.degree)
+        if self.eq in ('output', 'y'):
+            active = select_active(self.structure,n,m,p,self.degree)
+        
+        self._active = active
+        # Compute the derivatives of the polynomials
+        self.d_powers, self.d_coeff = poly_deriv(self.powers)
+        
+    def fnl(self,x,y,u):
+        # TODO: Ohh, code SUCKS!!!
+        repmat = np.ones(self.n_nx)  # maybe init in set_active? save time?
+        ndim = x.ndim
+        ns = 1
+        if ndim > 1:
+            ns = x.shape[0]
+        if ns == 1:
+            zeta = np.prod(np.outer(repmat, np.hstack((x, u)))**self.powers,axis=1)
+        else:
+            # same as nl_terms(signal,power).
+            zeta = np.prod(((np.kron(repmat, np.hstack((x, u)).T[None].T)).T)**self.powers[:,:,None],axis=1)
+         
+        return zeta
+    
+    def dfdy(self,x,y,u):
+        """Derivative wrt output, thus zero"""
+        return np.array([])
+    
+    def dfdx(self,x,y,u):
+        n = len(x)  # len returns 1dim(x.shape[0]) and allows x to be list.
+        signal = np.atleast_2d(np.hstack((x, u))).T
+        # n_all = number of signals x and u; ns = number of samples
+        n_all, ns = signal.shape
+        # n_nx = number of monomials in w
+        n_nx = self.n_nx
+        dfdx = np.zeros((n_nx,n,ns))
+        # Loop over all signals x w.r.t. which derivatives are taken
+        for k in range(n):
+            # Repeat coefficients of derivative of w w.r.t. x_k
+            A = np.outer(self.d_coeff[:,k], np.ones(ns))
+            for j in range(n_all):     # Loop over all signals x and u
+                for i in range(n_nx):  # Loop over all monomials
+                    # Derivative of monomial i wrt x_k
+                    A[i,:] *= signal[j,:]**self.d_powers[i,j,k]
+            dfdx[:,k,:] = A
+    
+        return dfdx
+    
+    def df(x,u):
+        """Example of generic derivative. Could be like this:
+        
+        def dfdy(...):
+            if self.eq in (...):
+                return df(some args)
+            else:
+                return df(oher args)
+        """
+        pass
+
+#from pyvib.polynomial import multEdwdx
+
+#pnlss = Pnlss('x', 2, 'full')    
+#pnlss.set_active(2,1,1,2)
+#
+#x = np.array([2,1])
+#u = np.array([1])
+#
+#dhdy = pnlss.dfdx(x,1,u)
+#signal = np.atleast_2d(np.hstack((x, u))).T
+#n = 2
+#E = np.arange(n*pnlss.n_nx).reshape(n,pnlss.n_nx)
+#
+#Edx = multEdwdx(signal, pnlss.d_powers, pnlss.d_coeff, E, n)
+#
+#Gdidy = np.einsum('ij,jkl->ikl',E,dhdy)
+
 
 class Polynomial_x(Nonlinear_Element):
     def __init__(self, exponent, w):
@@ -18,6 +123,14 @@ class Polynomial_x(Nonlinear_Element):
         self.n_ny = 0
         self.n_nl = self.n_nx + self.n_ny
         self._active = np.array([],dtype=np.intp)
+        
+    @property
+    def active(self):
+        return self._active
+        
+    def set_active(self,n,m,p,q):
+        # all are active
+        self._active = np.s_[0:q*self.n_nl]
 
     def fnl(self, x,y,u):
         w = self.w
@@ -38,15 +151,6 @@ class Polynomial_x(Nonlinear_Element):
         # same as np.outer when we do w.T
         dfdx = self.exponent[:,None] * xnl**(self.exponent-1) * w.T # (n, ns)
         return dfdx
-    
-    @property
-    def active(self):
-        return self._active
-        
-    def set_active(self,n,m,p,q):
-        # all are active
-        self._active = np.s_[0:q*self.n_nl]
-
 
 
 class Polynomial(Nonlinear_Element):
@@ -115,12 +219,12 @@ class Polynomial(Nonlinear_Element):
         # same as np.outer when we do w.T
         dfdy = self.exponent[:,None] * ynl**(self.exponent-1) * w.T # (p, ns)
         return dfdy
-    
+
 
 class NLS(object):
     """ Assemble nonlinear attachments
     
-    Note that each attachment is copyied to ensure it truly belong to the NLS 
+    Note that each attachment is copied to ensure it truly belong to the NLS 
     it was initiated with
     
     """
@@ -146,17 +250,8 @@ class NLS(object):
         if not isinstance(nls, list):
             nls = [nls]
         for nl in nls:
-            # Find columns in E(n,n_nl) matrix which correspond to x-dependent
-            # nl (idx) and y-dependent (idy). Note it does not matter if we 
-            # have '+nl.n_nx' in self.idy or '+nl.n_ny' in self.idx
-            self.idx = np.r_[self.idx, self.n_nl         + np.r_[0:nl.n_nx]]
-            self.idy = np.r_[self.idy, self.n_nl+nl.n_nx + np.r_[0:nl.n_ny]]
-
             self.nls.append(deepcopy(nl))  # copy!
-            self.n_nx += int(nl.n_nx)
-            self.n_ny += int(nl.n_ny)
-            self.n_nl += int(nl.n_nl)
-            
+
     def set_active(self,m,n,p,q):
         """Select active part of E
         n,m,p : int
@@ -187,6 +282,16 @@ class NLS(object):
             idx = row*self.n_nl + col
             self.active = np.r_[self.active, n_nl + idx]
             n_nl += npar
+
+        for nl in self.nls:
+            # Find columns in E(n,n_nl) matrix which correspond to x-dependent
+            # nl (idx) and y-dependent (idy). Note it does not matter if we 
+            # have '+nl.n_nx' in self.idy or '+nl.n_ny' in self.idx
+            self.idx = np.r_[self.idx, self.n_nl         + np.r_[0:nl.n_nx]]
+            self.idy = np.r_[self.idy, self.n_nl+nl.n_nx + np.r_[0:nl.n_ny]]
+            self.n_nx += int(nl.n_nx)
+            self.n_ny += int(nl.n_ny)
+            self.n_nl += int(nl.n_nl)
 
         # get permution index for combining JE and JG. We need this so 
         # θ(flattened parameters) correspond to the right place in the jacobian
@@ -234,8 +339,11 @@ class NLS(object):
         else:
             fnl = np.empty((self.n_nl,ns))
         
+        nls = 0
         for i, nl in enumerate(self.nls):
-            fnl[i] = nl.fnl(x,y,u)
+            n_nl = nl.n_nl
+            fnl[nls:nls+n_nl] = nl.fnl(x,y,u)
+            nls += n_nl
 
         # remove last dim if ns = 1
         return fnl #.squeeze(-1)
@@ -254,12 +362,14 @@ class NLS(object):
         y = np.atleast_2d(y)
         ns,p = y.shape
         dfdy = np.empty((self.n_ny,p,ns))
-        i = 0
+
+        nls = 0
         for nl in self.nls:
             tmp = nl.dfdy(x,y,u)
             if tmp.size:
-                dfdy[i] = tmp
-                i += 1
+                n_nl = nl.n_nx
+                dfdy[nls:nls+n_nl] = tmp
+                nls += n_nl
         
         return dfdy
 
@@ -276,12 +386,14 @@ class NLS(object):
         x = np.atleast_2d(x)
         ns,n = x.shape
         dfdx = np.empty((self.n_nx,n,ns))
-        i = 0
+
+        nls = 0
         for nl in self.nls:
             tmp = nl.dfdx(x,y,u)
             if tmp.size:
-                dfdx[i] = tmp
-                i += 1
+                n_nl = nl.n_nx
+                dfdx[nls:nls+n_nl] = tmp
+                nls += n_nl
         
         return dfdx
 
