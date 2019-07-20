@@ -49,6 +49,7 @@ E = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03],
 #               0.21129849, 0.00030216, 0.03299013, 0.02058325, -0.09202439,
 #               -0.0380775]])
 F = np.array([])
+F = np.array([[-0.00867042, -0.00636662]])
 
 E = np.array([[1.88130305e-01, -2.70291900e-01],
               [-5.35196110e-01, -3.66250013e-01]])
@@ -57,24 +58,25 @@ poly1 = Polynomial(exponent=2,w=1)
 poly2 = Polynomial(exponent=3,w=1)
 poly3 = Polynomial(exponent=4,w=1)
 
-#poly1 = Polynomial_x(exponent=2,w=[0,1])
-poly2 = Polynomial_x(exponent=3,w=[0,1])
-poly3 = Polynomial_x(exponent=4,w=[0,1])
+poly1x = Polynomial_x(exponent=2,w=[0,1])
+poly2x = Polynomial_x(exponent=3,w=[0,1])
+poly3x = Polynomial_x(exponent=4,w=[0,1])
 
 #poly4 = Polynomial(exponent=[5],w=[-1])
 #poly5 = Polynomial(exponent=[2],w=[1])
 
 #nl_x = NLS([poly1, poly2])  #, poly3])  # nls in state eq
-nl_x = NLS([poly2, poly1])  #, poly3])  # nls in state eq
+nlx = NLS([poly2, poly1])  #, poly3])  # nls in state eq
+nly = NLS([poly1x,poly2x])
 
 #E = np.array([[1.88130305e-01],
 #              [-5.35196110e-01]])
 # nl_x = NLS([poly1])  # nls in state eq
-
-
+#E = np.array([])
+#nlx = None
 # No nls in output eq
 true_model = NLSS(A, B, C, D, E, F)
-true_model.add_nl(nlx=nl_x)
+true_model.add_nl(nlx=nlx, nly=nly)
 
 
 #true_model.nlterms('x', [2,3], 'full')
@@ -171,18 +173,20 @@ poly3y = Polynomial(exponent=4,w=1)
 poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
 poly3x = Polynomial_x(exponent=4,w=[0,1])
+# nlx2 = NLS([poly1,poly2])  #,poly3])
+#nlx2 = NLS([poly2x,poly1y,poly3y])  #,poly3])
+nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
+nly2 = NLS([poly1x,poly2x])
 
-# nl_x2 = NLS([poly1,poly2])  #,poly3])
-#nl_x2 = NLS([poly2x,poly1y,poly3y])  #,poly3])
-nl_x2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
+# nlx2 = None
 
 model = NLSS(linmodel)
-model.add_nl(nlx=nl_x2)
+model.add_nl(nlx=nlx2, nly=nly2)
 #model.nlterms('x', [2,3], 'full')
 #model.nlterms('y', [2,3], 'full')
 model.set_signal(sig)
 model.transient(T1)
-model.optimize(lamb=100, weight=weight, nmax=60)
+model.optimize(lamb=100, weight=weight, nmax=100)
 
 # get best model on validation data. Change Transient settings, as there is
 # only one realization

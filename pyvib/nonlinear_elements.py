@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-
+from copy import deepcopy
 
 class Nonlinear_Element:
     """Bare class
@@ -118,6 +118,12 @@ class Polynomial(Nonlinear_Element):
     
 
 class NLS(object):
+    """ Assemble nonlinear attachments
+    
+    Note that each attachment is copyied to ensure it truly belong to the NLS 
+    it was initiated with
+    
+    """
 
     def __init__(self, nls=None):
         self.nls = []
@@ -146,7 +152,7 @@ class NLS(object):
             self.idx = np.r_[self.idx, self.n_nl         + np.r_[0:nl.n_nx]]
             self.idy = np.r_[self.idy, self.n_nl+nl.n_nx + np.r_[0:nl.n_ny]]
 
-            self.nls.append(nl)
+            self.nls.append(deepcopy(nl))  # copy!
             self.n_nx += int(nl.n_nx)
             self.n_ny += int(nl.n_ny)
             self.n_nl += int(nl.n_nl)

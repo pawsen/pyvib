@@ -194,7 +194,7 @@ def jacobian(x0, system, weight=False):
     # (n_nx,n,ns)
     dhdx = system.nlx.dfdx(x_trans,y_trans,u_trans)
     didy = system.nlx.dfdy(x_trans,y_trans,u_trans)
-    djdx = system.nly.dfdy(x_trans,y_trans,u_trans)
+    djdx = system.nly.dfdx(x_trans,y_trans,u_trans)
     
     if E.size == 0:
         A_Edhdx = np.zeros(shape=(*A.shape,nts))
@@ -217,9 +217,9 @@ def jacobian(x0, system, weight=False):
         JD = np.kron(np.eye(p), system.signal.um)  # (p*ns, p*m)
     except:
         JD = np.kron(np.eye(p), system.um)  # (p*ns, p*m)
-    if system.nly.yactive.size:
+    if system.nly.active.size:
         JF = np.kron(np.eye(p), jvec)  # Jacobian wrt all elements in F
-        JF = JF[:,system.nly.yactive]  # all active elements in F. (p*nts,nactiveF)
+        JF = JF[:,system.nly.active]  # all active elements in F. (p*nts,nactiveF)
         JF = JF[system.idx_remtrans]  # (p*ns,nactiveF)
     else:
         JF = np.array([]).reshape(p*ns,0)
