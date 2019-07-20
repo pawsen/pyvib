@@ -2,17 +2,16 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from numpy.linalg import norm
 from scipy.interpolate import interp1d
-from pyvib.nonlinear_elements import Polynomial, NLS, Polynomial_x
-from pyvib.statespace import NonlinearStateSpace, StateSpaceIdent
 
-from scipy import signal
-from scipy.linalg import solve
+from .statespace import NonlinearStateSpace, StateSpaceIdent
+from .nonlinear_elements import NLS
 
 # http://www.brendangregg.com/books.html
 
 class NLSS(NonlinearStateSpace, StateSpaceIdent):
-    def __init__(self, nlx, nly, *system, **kwargs):
+    def __init__(self, *system, **kwargs):
         """
         """
         if len(system) == 1:  # and isinstance(system[0], StateSpace):
@@ -23,19 +22,26 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
             kwargs['dt'] = 1  # unit sampling
 
         super().__init__(*sys, **kwargs)
-        self.nlx = nlx
-        self.nly = nly
+
+        self.nlx = NLS()
+        self.nly = NLS() 
+
+    def set_signal(self,signal):
+        self.signal = signal
+        
+    def add_nl(self, nlx=None, nly=None):
+        # set active elements(if needed) now the system size is known
+        if nlx is not None:
+            self.nlx = nlx
+            self.nlx.set_active(self.n,self.m,self.p,self.n)
+        if nly is not None:
+            self.nly = nly     
+            self.nly.set_active(self.n,self.m,self.p,self.p)
+
         if self.E.size == 0:
             self.E = np.zeros((self.n, self.nlx.n_nl))
         if self.F.size == 0 and self.nly.n_nl:
             self.F = np.zeros((self.p, self.nly.n_nl))
-        
-        # set active elements(if needed) now the system size is known
-        nlx.set_active(self.n,self.m,self.p,self.n)
-        nly.set_active(self.n,self.m,self.p,self.p)
-        
-    def set_signal(self,signal):
-        self.signal = signal
         
     def output(self, u, t=None, x0=None):
         return dnlsim(self, u, t=t, x0=x0)
@@ -50,8 +56,28 @@ def dnlsim(system, u, t=None, x0=None):
         x(t+1) = A x(t) + B u(t) + E h(x(t),u(t)) + G i(y(t),ẏ(t))
         y(t)   = C x(t) + D u(t) + F j(x(t),u(t))
 
-    The initial state is given in x0.
+    Parameters
+    ----------
+    system: nlss
+    u : array_like
+        An input array describing the input at each time `t` (interpolation is
+        assumed between given times).  If there are multiple inputs, then each
+        column of the rank-2 array represents an input.
+    t : ndarray, optional
+        The time steps at which the input is defined.  If `t` is given, it
+        must be the same length as `u`, and the final value in `t` determines
+        the number of steps returned in the output using system.dt
+    x0: ndarray (n), optional
+        The initial conditions on the state vector (zero by default).
 
+    Returns
+    -------
+    tout : ndarray (ns)
+        Time values for the output, as a 1-D array.
+    yout : ndarray (ns,p)
+        System response
+    xout : ndarray (ns,n)
+        Time-evolution of the state-vector.
     """
     #if not isinstance(system, NLSS):
     #    raise ValueError(f'System must be a NLSS object {type(system)}')
@@ -114,17 +140,25 @@ def dnlsim(system, u, t=None, x0=None):
 def jacobian(x0, system, weight=False):
     """Compute the Jacobians of a steady state nonlinear state-space model
 
-    Jacobians of a nonlinear state-space model
-
         x(t+1) = A x(t) + B u(t) + E h(x(t),u(t)) + G i(y(t),ẏ(t))
         y(t)   = C x(t) + D u(t) + F j(x(t),u(t))
 
     i.e. the partial derivatives of the modeled output w.r.t. the active
     elements in the A, B, E, F, D, and C matrices, fx: JA = ∂y/∂Aᵢⱼ
 
-    x0 : ndarray
+    Parameters
+    ----------
+    x0: ndarray
         flattened array of state space matrices
+    system: NLSS
+        NLSS system
+    weight: bool, optional
+        Weight the jacobian. Default is False
 
+    Returns
+    -------
+    jac: ndarray(p*ns, npar)
+        derivative of output equation wrt. each active element in ss matrices
     """
 
     n, m, p = system.n, system.m, system.p
@@ -146,10 +180,10 @@ def jacobian(x0, system, weight=False):
         u_trans = system.um[system.idx_trans]
     nts = u_trans.shape[0]  # nts: number of total samples(including transient)
     
-    A, B, C, D, E, F = system.extract(x0)
+    A, B, C, D, Efull, F = system.extract(x0)
     # split E in x- and y dependent part
-    G = E[:,system.nlx.idy]
-    E = E[:,system.nlx.idx]
+    G = Efull[:,system.nlx.idy]
+    E = Efull[:,system.nlx.idx]
     
     fnl = system.nlx.fnl(x_trans,y_trans,u_trans)  # (n_nx, nts)
     hvec = fnl[system.nlx.idx].T  # (nts, nlx.n_nx)
@@ -215,46 +249,55 @@ def jacobian(x0, system, weight=False):
     else:
         JG = np.array([]).reshape(p*ns,0)
 
-    
-    jac = np.hstack((JA, JB, JC, JD, JE, JG, JF))  # TODO [without_T2]
+    # combine JE/JG and permute, so the columns correspond to nlx.active
+    # this is important when parameters are flattened to θ and back again.
+    # Note this returns a copy(as is always the case with fancy indexing)
+    permution = np.concatenate((system.nlx.jac_x, system.nlx.jac_y))
+    idx = np.argsort(permution)  # get the indices that would sort the array.
+    jac = np.hstack((JA, JB, JC, JD, np.hstack((JE,JG))[:,idx], JF))  # TODO [without_T2]
     npar = jac.shape[1]
     
     return jac
 
 
 def element_jacobian(samples, A_Edhdx, Gdidy, C_Fdjdx, active):
-    """Compute Jacobian of the output y wrt. A, B, and E
+    """Compute Jacobian of the output y wrt. single state space matrix
 
     The Jacobian is calculated by filtering an alternative state-space model
 
-
     ∂x∂Aᵢⱼ(t+1) = Iᵢⱼx(t) + (A + E*∂h∂x) ∂x∂Aᵢⱼ(t) + G*∂i∂y*∂y∂Aᵢⱼ(t)
-    ∂y∂Aᵢⱼ(t) = (C + F)*∂x∂Aᵢⱼ(t)
+    ∂y∂Aᵢⱼ(t)   = (C + F)*∂x∂Aᵢⱼ(t)
 
-    ∂x∂Bᵢⱼ(t+1) = Iᵢⱼu(t) + (A + E*∂h∂x) ∂x∂Aᵢⱼ(t) + G ∂i∂y*∂y∂Aᵢⱼ(t)
-    ∂y∂Bᵢⱼ(t) = (C + F)*∂x∂Bᵢⱼ(t)
+    ∂x∂Bᵢⱼ(t+1) = Iᵢⱼu(t) + (A + E*∂h∂x) ∂x∂Bᵢⱼ(t) + G ∂i∂y*∂y∂Bᵢⱼ(t)
+    ∂y∂Bᵢⱼ(t)   = (C + F)*∂x∂Bᵢⱼ(t)
 
-    ∂x∂Eᵢⱼ(t+1) = Iᵢⱼ(t) + (A + E*∂h∂x) ∂x∂Aᵢⱼ(t) + G ∂i∂y*∂y∂Aᵢⱼ(t)
-    ∂y∂Eᵢⱼ(t) = (C + F)*∂x∂Eᵢⱼ(t)
+    ∂x∂Eᵢⱼ(t+1) = Iᵢⱼh(t) + (A + E*∂h∂x) ∂x∂Eᵢⱼ(t) + G ∂i∂y*∂y∂Eᵢⱼ(t)
+    ∂y∂Eᵢⱼ(t)   = (C + F)*∂x∂Eᵢⱼ(t)
 
-    where JA = ∂y∂Aᵢⱼ
+    ∂x∂Gᵢⱼ(t+1) = Iᵢⱼi(t) + (A + E*∂h∂x) ∂x∂Gᵢⱼ(t) + G ∂i∂y*∂y∂Gᵢⱼ(t)
+    ∂y∂Gᵢⱼ(t)   = (C + F)*∂x∂Gᵢⱼ(t)
+
+
+    We use the notation: JA = ∂y∂Aᵢⱼ
 
     Parameters
     ----------
     samples : ndarray
-       x, u or zeta corresponding to JA, JB, or JE
-    A_Edwdx : ndarray (n,n,NT)
-       The result of ``A + E*∂ζ∂x``
-    C_Fdwdx : ndarray (p,n,NT)
-       The result of ``C + F*∂η∂x``
+       x, u, h or i  corresponding to JA, JB, JE or JG
+    A_Edhdx : ndarray (n,n,nts)
+       The result of ``A + E*∂h∂x``
+    Gdidy : ndarray (n,p,nts)
+       The result of ``G*∂i∂y``
+    C_Fdwdx : ndarray (p,n,nts)
+       The result of ``C + F*∂j∂x``
     active : ndarray
-       Array with index of active elements. For JA: np.arange(n**2), JB: n*m or
-       JE: xactive
+       Array with index of the active elements. For JA: np.arange(n**2),
+       JB: n*m, JE: xactive, JG: yactive
 
     Returns
     -------
     out : ndarray (p,nactive,nt)
-       Jacobian; JA, JB or JE depending on the samples given as input
+       Jacobian; JA, JB, JE or JG depending on the samples given as input
 
     See fJNL
 
@@ -285,6 +328,7 @@ def element_jacobian(samples, A_Edhdx, Gdidy, C_Fdjdx, active):
     return out
 
 
+# from pyvib.nonlinear_elements import Polynomial, NLS, Polynomial_x, NLS
 # test linear system
 #m = 1
 #k = 2

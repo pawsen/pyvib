@@ -6,7 +6,6 @@ import numpy as np
 
 class Nonlinear_Element:
     """Bare class
-    
     """
     pass
 
@@ -51,6 +50,9 @@ class Polynomial_x(Nonlinear_Element):
 
 
 class Polynomial(Nonlinear_Element):
+    """Polynomial output nonlinearity
+    """
+
     def __init__(self, exponent, w, structure='Full'):
         """
         exponents: ndarray (n_ny)
@@ -122,11 +124,15 @@ class NLS(object):
         self.n_nx = 0
         self.n_ny = 0
         self.n_nl = 0
+        # different indexes needed to keep track of which par is x- and
+        # y-dependent. ugly.
         self.idx = np.array([],dtype=np.intp)
         self.idy = np.array([],dtype=np.intp)
         self.active = np.array([],dtype=np.intp)
         self.xactive = np.array([],dtype=np.intp)
         self.yactive = np.array([],dtype=np.intp)
+        self.jac_x = np.array([],dtype=np.intp)
+        self.jac_y = np.array([],dtype=np.intp)
         if nls is not None:
             self.add(nls)
 
@@ -134,11 +140,12 @@ class NLS(object):
         if not isinstance(nls, list):
             nls = [nls]
         for nl in nls:
-            # Find columns in E(n,n_nl) matrix which correspond to x-depedent
-            # nl (idx) and y-dependent (idy)
+            # Find columns in E(n,n_nl) matrix which correspond to x-dependent
+            # nl (idx) and y-dependent (idy). Note it does not matter if we 
+            # have '+nl.n_nx' in self.idy or '+nl.n_ny' in self.idx
             self.idx = np.r_[self.idx, self.n_nl         + np.r_[0:nl.n_nx]]
             self.idy = np.r_[self.idy, self.n_nl+nl.n_nx + np.r_[0:nl.n_ny]]
-            
+
             self.nls.append(nl)
             self.n_nx += int(nl.n_nx)
             self.n_ny += int(nl.n_ny)
@@ -153,25 +160,42 @@ class NLS(object):
                 q = n if E matrix is considered,
                 q = p if F matrix is considered
         """
+        # This is a very ugly piece of code. All this is needed for splitting 
+        # E in E/G, where E are coefficients for x-dependen nl's and G for y.
+        # And recombining the jacobians JE/JG
+        
         n_nl = 0
-        # TODO hack; if the same NLS object is used multiple times, this
-        # resets the active count
+        # If the same NLS object is used multiple times, we need to
+        # reset the active count, as done here.
         self.active = np.array([],dtype=np.intp)
+        self.jac_active = np.array([],dtype=np.intp)
         self.xactive = np.array([],dtype=np.intp)
         self.yactive = np.array([],dtype=np.intp)
         for nl in self.nls:
             nl.set_active(m,n,p,q)
             # convert local index to global index. Active elements in global E
             npar = nl.n_nl
-            active = np.r_[nl.active]
+            active = np.r_[nl.active]  # active might be a slice -> convert
             col = np.mod(active, npar)
             row = (active-col)// npar
             idx = row*self.n_nl + col
             self.active = np.r_[self.active, n_nl + idx]
             n_nl += npar
-            # print(self.active)
 
-        # get index in splitted E/G matrix
+        # get permution index for combining JE and JG. We need this so 
+        # θ(flattened parameters) correspond to the right place in the jacobian
+        nlj = 0
+        self.jac_x = np.array([],dtype=np.intp)
+        self.jac_y = np.array([],dtype=np.intp)
+        for nl in self.nls:
+            active = np.r_[nl.active]
+            self.jac_x = np.r_[self.jac_x, nlj                       +\
+                          np.r_[:nl.n_nx*len(active)]]
+            self.jac_y = np.r_[self.jac_y, nlj + nl.n_nx*len(active) +\
+                          np.r_[:nl.n_ny*len(active)]]
+            nlj += nl.n_nl*len(active)
+
+        # get (local) index in splitted E/G matrix
         col = np.mod(self.active,self.n_nl)
         row = (self.active-col)//self.n_nl
         for i, lcol in enumerate(self.idx):
@@ -230,12 +254,8 @@ class NLS(object):
             if tmp.size:
                 dfdy[i] = tmp
                 i += 1
-#
-#        dfdy = []
-#        for nl in self.nls:
-#            dfdy.extend(nl.dfdy(x,y,u))
         
-        return dfdy  #.squeeze(-1)
+        return dfdy
 
     def dfdx(self,x,y,u):
         """

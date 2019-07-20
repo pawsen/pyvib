@@ -33,7 +33,7 @@ http://homepages.vub.ac.be/~ktiels/pnlss.html
 
 # save figures to disk
 savefig = False
-add_noise = True
+add_noise = False
 weight = False
 
 ## Generate data from true model ##
@@ -50,27 +50,31 @@ E = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03],
 #               -0.0380775]])
 F = np.array([])
 
+E = np.array([[1.88130305e-01, -2.70291900e-01],
+              [-5.35196110e-01, -3.66250013e-01]])
+
 poly1 = Polynomial(exponent=2,w=1)
 poly2 = Polynomial(exponent=3,w=1)
 poly3 = Polynomial(exponent=4,w=1)
 
-poly1 = Polynomial_x(exponent=2,w=[0,1])
+#poly1 = Polynomial_x(exponent=2,w=[0,1])
 poly2 = Polynomial_x(exponent=3,w=[0,1])
 poly3 = Polynomial_x(exponent=4,w=[0,1])
 
 #poly4 = Polynomial(exponent=[5],w=[-1])
 #poly5 = Polynomial(exponent=[2],w=[1])
 
-nl_x = NLS([poly1, poly2, poly3])  # nls in state eq
+#nl_x = NLS([poly1, poly2])  #, poly3])  # nls in state eq
+nl_x = NLS([poly2, poly1])  #, poly3])  # nls in state eq
 
 #E = np.array([[1.88130305e-01],
 #              [-5.35196110e-01]])
 # nl_x = NLS([poly1])  # nls in state eq
 
 
-nl_y = NLS()       # nls in output eq
-
-true_model = NLSS(nl_x,nl_y,A, B, C, D, E, F)
+# No nls in output eq
+true_model = NLSS(A, B, C, D, E, F)
+true_model.add_nl(nlx=nl_x)
 
 
 #true_model.nlterms('x', [2,3], 'full')
@@ -137,7 +141,13 @@ um, ym = sig.average()
 nvec = [2,3]
 maxr = 5
 
-if False:
+if 'linmodel' not in locals():
+    linmodel = Subspace(sig)
+    linmodel.estimate(2, 5, weight=weight)  # best model, when noise weighting is used
+    linmodel.optimize(weight=weight)
+    print(f"Best subspace model, n, r: {linmodel.n}, {linmodel.r}")
+
+if False:  # dont scan subspace
     linmodel = Subspace(sig)
     # get best model on validation data
     models, infodict = linmodel.scan(nvec, maxr, weight=weight)
@@ -146,7 +156,7 @@ if False:
     linmodel.estimate(2, 5, weight=weight)  # best model, when noise weighting is used
     linmodel.optimize(weight=weight)
     print(f"Best subspace model, n, r: {linmodel.n}, {linmodel.r}")
-    linmodel2 = deepcopy(linmodel)
+    
 
 # estimate PNLSS
 # transient: Add one period before the start of each realization. Note that
@@ -154,18 +164,20 @@ if False:
 Rest = yest.shape[2]
 T1 = np.r_[npp, np.r_[0:(Rest-1)*npp+1:npp]]
 
-poly1 = Polynomial(exponent=2,w=1)
-poly2 = Polynomial(exponent=3,w=1)
-poly3 = Polynomial(exponent=4,w=1)
+poly1y = Polynomial(exponent=2,w=1)
+poly2y = Polynomial(exponent=3,w=1)
+poly3y = Polynomial(exponent=4,w=1)
 
-poly1 = Polynomial_x(exponent=2,w=[0,1])
-poly2 = Polynomial_x(exponent=3,w=[0,1])
-poly3 = Polynomial_x(exponent=4,w=[0,1])
+poly1x = Polynomial_x(exponent=2,w=[0,1])
+poly2x = Polynomial_x(exponent=3,w=[0,1])
+poly3x = Polynomial_x(exponent=4,w=[0,1])
 
-nl_x2 = NLS([poly1,poly2,poly3])
-nl_y2 = NLS()
+# nl_x2 = NLS([poly1,poly2])  #,poly3])
+#nl_x2 = NLS([poly2x,poly1y,poly3y])  #,poly3])
+nl_x2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
 
-model = NLSS(nl_x2,nl_y2,linmodel)
+model = NLSS(linmodel)
+model.add_nl(nlx=nl_x2)
 #model.nlterms('x', [2,3], 'full')
 #model.nlterms('y', [2,3], 'full')
 model.set_signal(sig)
@@ -253,8 +265,8 @@ plt.title('Selection of the best model on a separate data set')
 figs['pnlss_path'] = (plt.gcf(), plt.gca())
 
 # subspace plots
-figs['subspace_optim'] = linmodel.plot_info()
-figs['subspace_models'] = linmodel.plot_models()
+#figs['subspace_optim'] = linmodel.plot_info()
+#figs['subspace_models'] = linmodel.plot_models()
 
 if savefig:
     for k, fig in figs.items():
@@ -264,3 +276,4 @@ if savefig:
             f[0].savefig(f"fig/tutorial_{k}{i}.pdf")
 
 plt.show()
+
