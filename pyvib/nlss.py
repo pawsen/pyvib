@@ -11,9 +11,20 @@ from .nonlinear_elements import NLS
 # http://www.brendangregg.com/books.html
 
 class NLSS(NonlinearStateSpace, StateSpaceIdent):
+    """Nonlinear Time Invariant system in state-space form.
+    
+    x(t+1) = A x(t) + B u(t) + E g(x(t),y(t),u(t))
+    y(t)   = C x(t) + D u(t) + F h(x(t),u(t))
+    
+    `NLSS` systems inherit additional functionality from the 
+    :class:`statespace.NonlinearStateSpace` and
+    :class:`statespace.StateSpaceIdent` classes.
+    
+    Examples
+    --------
+    
+    """
     def __init__(self, *system, **kwargs):
-        """
-        """
         if len(system) == 1:  # and isinstance(system[0], StateSpace):
             sys = system
             kwargs['dt'] = sys[0].dt
@@ -30,6 +41,7 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
         self.signal = signal
         
     def add_nl(self, nlx=None, nly=None):
+        """Add nonlinear elements"""
         # set active elements(if needed) now the system size is known
         if nlx is not None:
             self.nlx = nlx
@@ -44,6 +56,7 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
             self.F = np.zeros((self.p, self.nly.n_nl))
         
     def output(self, u, t=None, x0=None):
+        """Simulate output of a discrete-time nonlinear system."""
         return dnlsim(self, u, t=t, x0=x0)
     
     def jacobian(self, x0, weight=False):
@@ -53,13 +66,13 @@ def dnlsim(system, u, t=None, x0=None):
     """Simulate output of a discrete-time nonlinear system.
 
     Calculate the output and the states of a nonlinear state-space model.
-        x(t+1) = A x(t) + B u(t) + E h(x(t),u(t)) + G i(y(t),ẏ(t))
-        y(t)   = C x(t) + D u(t) + F j(x(t),u(t))
+        x(t+1) = A x(t) + B u(t) + E g(x(t),y(t),u(t))
+        y(t)   = C x(t) + D u(t) + F h(x(t),u(t))
 
     Parameters
     ----------
-    system: nlss
-    u : array_like
+    system : instance of `nlss`
+    u : ndarray(ns) or ndarray(ns,p)
         An input array describing the input at each time `t` (interpolation is
         assumed between given times).  If there are multiple inputs, then each
         column of the rank-2 array represents an input.
@@ -67,16 +80,16 @@ def dnlsim(system, u, t=None, x0=None):
         The time steps at which the input is defined.  If `t` is given, it
         must be the same length as `u`, and the final value in `t` determines
         the number of steps returned in the output using system.dt
-    x0: ndarray (n), optional
+    x0: ndarray(n), optional
         The initial conditions on the state vector (zero by default).
 
     Returns
     -------
-    tout : ndarray (ns)
+    tout : ndarray(ns)
         Time values for the output, as a 1-D array.
-    yout : ndarray (ns,p)
+    yout : ndarray(ns,p)
         System response
-    xout : ndarray (ns,n)
+    xout : ndarray(ns,n)
         Time-evolution of the state-vector.
     """
     #if not isinstance(system, NLSS):
@@ -119,21 +132,21 @@ def dnlsim(system, u, t=None, x0=None):
     for i in range(0, out_samples - 1):
         # Output equation y(t) = C*x(t) + D*u(t) + F*j(t)
         # TODO jvec: must not depend on y!
-        jvec = system.nly.fnl(xout[i],0,u_dt[i])
+        hvec = system.nly.fnl(xout[i],0,u_dt[i])
         yout[i, :] = (np.dot(system.C, xout[i, :]) +
                       np.dot(system.D, u_dt[i, :]) + 
-                      np.dot(system.F, jvec))
+                      np.dot(system.F, hvec))
         # State equation x(t+1) = A*x(t) + B*u(t) + E*zeta(y(t),ẏ(t))
-        hvec = system.nlx.fnl(xout[i, :],yout[i, :],u_dt[i, :])
+        gvec = system.nlx.fnl(xout[i, :],yout[i, :],u_dt[i, :])
         xout[i+1, :] = (np.dot(system.A, xout[i, :]) +
                         np.dot(system.B, u_dt[i, :]) +
-                        np.dot(system.E, hvec))
+                        np.dot(system.E, gvec))
 
     # Last point
-    jvec = system.nly.fnl(xout[-1, :],0,u_dt[-1, :])
+    hvec = system.nly.fnl(xout[-1, :],0,u_dt[-1, :])
     yout[-1, :] = (np.dot(system.C, xout[-1, :]) +
                    np.dot(system.D, u_dt[-1, :]) +
-                   np.dot(system.F, jvec))
+                   np.dot(system.F, hvec))
 
     return tout, yout, xout
 
@@ -148,9 +161,9 @@ def jacobian(x0, system, weight=False):
 
     Parameters
     ----------
-    x0: ndarray
+    x0: ndarray(npar)
         flattened array of state space matrices
-    system: NLSS
+    system: instance of `nlss`
         NLSS system
     weight: bool, optional
         Weight the jacobian. Default is False
@@ -282,15 +295,15 @@ def element_jacobian(samples, A_Edhdx, Gdidy, C_Fdjdx, active):
 
     Parameters
     ----------
-    samples : ndarray
+    samples : ndarray(nt,npar)
        x, u, h or i  corresponding to JA, JB, JE or JG
-    A_Edhdx : ndarray (n,n,nts)
+    A_Edhdx : ndarray(n,n,nts)
        The result of ``A + E*∂h∂x``
-    Gdidy : ndarray (n,p,nts)
+    Gdidy : ndarray(n,p,nts)
        The result of ``G*∂i∂y``
-    C_Fdwdx : ndarray (p,n,nts)
+    C_Fdwdx : ndarray(p,n,nts)
        The result of ``C + F*∂j∂x``
-    active : ndarray
+    active : ndarray(nactive)
        Array with index of the active elements. For JA: np.arange(n**2),
        JB: n*m, JE: xactive, JG: yactive
 
