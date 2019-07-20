@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from copy import deepcopy
+
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.linalg import norm
@@ -9,11 +11,9 @@ from pyvib.common import db
 from pyvib.forcing import multisine
 from pyvib.frf import covariance
 from pyvib.nlss import NLSS
+from pyvib.nonlinear_elements import NLS, Pnlss, Polynomial, Polynomial_x
 from pyvib.signal import Signal
 from pyvib.subspace import Subspace
-from pyvib.nonlinear_elements import NLS, Polynomial, Polynomial_x, Pnlss
-
-from copy import deepcopy
 
 """This tutorial shows the work flow of modeling a single input single output
 (SISO) polynomial nonlinear state-space (PNLSS) model.
@@ -64,7 +64,7 @@ poly2x = Polynomial_x(exponent=3,w=[0,1])
 poly3x = Polynomial_x(exponent=4,w=[0,1])
 
 
-nlx = NLS([poly2x, poly1y])  #, poly3])  # nls in state eq
+nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
 #nly = NLS([poly1x,poly2x])
 
 #E = np.array([[1.88130305e-01],
@@ -283,4 +283,3 @@ if savefig:
             f[0].savefig(f"fig/tutorial_{k}{i}.pdf")
 
 plt.show()
-

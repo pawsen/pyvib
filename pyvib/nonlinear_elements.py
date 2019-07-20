@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import numpy as np
 from copy import deepcopy
 
-from pyvib.polynomial import combinations, select_active, poly_deriv, nl_terms
+import numpy as np
+
+from pyvib.polynomial import combinations, nl_terms, poly_deriv, select_active
+
 
 """Nonlinear functions
 """
@@ -264,14 +266,26 @@ class NLS(object):
         # This is a very ugly piece of code. All this is needed for splitting 
         # E in E/G, where E are coefficients for x-dependen nl's and G for y.
         # And recombining the jacobians JE/JG
-        
-        n_nl = 0
+
+        # first we need to determine the total number of NLs. This can only be
+        # done when the system size (n,m,p) is known
+        for nl in self.nls:
+            # Find columns in E(n,n_nl) matrix which correspond to x-dependent
+            # nl (idx) and y-dependent (idy). Note it does not matter if we
+            # have '+nl.n_nx' in self.idy or '+nl.n_ny' in self.idx
+            self.idx = np.r_[self.idx, self.n_nl         + np.r_[0:nl.n_nx]]
+            self.idy = np.r_[self.idy, self.n_nl+nl.n_nx + np.r_[0:nl.n_ny]]
+            self.n_nx += int(nl.n_nx)
+            self.n_ny += int(nl.n_ny)
+            self.n_nl += int(nl.n_nl)
+
         # If the same NLS object is used multiple times, we need to
         # reset the active count, as done here.
         self.active = np.array([],dtype=np.intp)
         self.jac_active = np.array([],dtype=np.intp)
         self.xactive = np.array([],dtype=np.intp)
         self.yactive = np.array([],dtype=np.intp)
+        n_nl = 0
         for nl in self.nls:
             nl.set_active(m,n,p,q)
             # convert local index to global index. Active elements in global E
@@ -283,17 +297,7 @@ class NLS(object):
             self.active = np.r_[self.active, n_nl + idx]
             n_nl += npar
 
-        for nl in self.nls:
-            # Find columns in E(n,n_nl) matrix which correspond to x-dependent
-            # nl (idx) and y-dependent (idy). Note it does not matter if we 
-            # have '+nl.n_nx' in self.idy or '+nl.n_ny' in self.idx
-            self.idx = np.r_[self.idx, self.n_nl         + np.r_[0:nl.n_nx]]
-            self.idy = np.r_[self.idy, self.n_nl+nl.n_nx + np.r_[0:nl.n_ny]]
-            self.n_nx += int(nl.n_nx)
-            self.n_ny += int(nl.n_ny)
-            self.n_nl += int(nl.n_nl)
-
-        # get permution index for combining JE and JG. We need this so 
+        # get permution index for combining JE and JG. We need this so
         # θ(flattened parameters) correspond to the right place in the jacobian
         nlj = 0
         self.jac_x = np.array([],dtype=np.intp)
@@ -367,9 +371,9 @@ class NLS(object):
         for nl in self.nls:
             tmp = nl.dfdy(x,y,u)
             if tmp.size:
-                n_nl = nl.n_nx
-                dfdy[nls:nls+n_nl] = tmp
-                nls += n_nl
+                n_ny = nl.n_ny
+                dfdy[nls:nls+n_ny] = tmp
+                nls += n_ny
         
         return dfdy
 
@@ -391,9 +395,9 @@ class NLS(object):
         for nl in self.nls:
             tmp = nl.dfdx(x,y,u)
             if tmp.size:
-                n_nl = nl.n_nx
-                dfdx[nls:nls+n_nl] = tmp
-                nls += n_nl
+                n_nx = nl.n_nx
+                dfdx[nls:nls+n_nx] = tmp
+                nls += n_nx
         
         return dfdx
 
