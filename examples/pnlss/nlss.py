@@ -33,7 +33,7 @@ http://homepages.vub.ac.be/~ktiels/pnlss.html
 
 # save figures to disk
 savefig = False
-add_noise = False
+add_noise = True
 weight = False
 
 ## Generate data from true model ##
@@ -42,17 +42,11 @@ A = np.array([[0.73915535, -0.62433133],[0.6247377, 0.7364469]])
 B = np.array([[0.79287245], [-0.34515159]])
 C = np.array([[0.71165154, 0.34917771]])
 D = np.array([[0.04498052]])
-E = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03],
-              [-5.35196110e-01, -3.66250013e-01, 2.34622651e-02]])
-#F = np.array([[-0.00867042, -0.00636662, 0.00197873, -0.00090865, -0.00088879,
-#               -0.02759694, -0.01817546, -0.10299409, 0.00648549, 0.08990175,
-#               0.21129849, 0.00030216, 0.03299013, 0.02058325, -0.09202439,
-#               -0.0380775]])
-F = np.array([])
-nly = None
-#F = np.array([[-0.00867042, -0.00636662]])
-
-E = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03,
+Ffull = np.array([[-0.00867042, -0.00636662, 0.00197873, -0.00090865, -0.00088879,
+               -0.02759694, -0.01817546, -0.10299409, 0.00648549, 0.08990175,
+               0.21129849, 0.00030216, 0.03299013, 0.02058325, -0.09202439,
+               -0.0380775]])
+Efull = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03,
                -5.78088500e-01, 9.54588221e-03, 5.08576019e-04,
                -1.33890850e+00, -2.02171960e+00,-4.05918956e-01,
                -1.37744223e+00, 1.21206232e-01,-9.26349423e-02,
@@ -64,6 +58,8 @@ E = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03,
                4.88513652e-01, 7.81285093e-01, -3.41019453e-01,
                2.27692972e-01, 7.70150211e-02, -1.25046731e-02,
                -1.62456154e-02]])
+Eextra = np.array([[-3.165156145e-02, -5.12315312e-02],
+                   [2.156132115e-02,  1.46517548e-02]])
 
 poly1y = Polynomial(exponent=2,w=1)
 poly2y = Polynomial(exponent=3,w=1)
@@ -73,18 +69,20 @@ poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
 poly3x = Polynomial_x(exponent=4,w=[0,1])
 
-E = E[:,:2]
+F = np.array([])
+nly = None
+
+E = Efull[:,:2]
 nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
 #nly = NLS([poly1x,poly2x])
 
+#E = Efull
+#nlx = NLS([Pnlss(degree=[2,3], structure='full')])
+F = Ffull
+nly = NLS([Pnlss(degree=[2,3], structure='full')])
 
-#E = E[:,:6]
-#nlx = NLS([Pnlss(degree=2, structure='full')])
-#E = np.array([[1.88130305e-01],
-#              [-5.35196110e-01]])
-#nlx = NLS([poly1])  # nls in state eq
-#E = np.array([])
-#nlx = None
+E = np.hstack((Efull, Eextra))
+nlx = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
 
 # No nls in output eq
 true_model = NLSS(A, B, C, D, E, F)
@@ -156,11 +154,12 @@ if True:
 nvec = [2,3]
 maxr = 5
 
-if 'linmodel' not in locals():
+if 'linmodel' not in locals() or True:
     linmodel = Subspace(sig)
     linmodel.estimate(2, 5, weight=weight)  # best model, when noise weighting is used
     linmodel.optimize(weight=weight)
     print(f"Best subspace model, n, r: {linmodel.n}, {linmodel.r}")
+    linmodel_orig = linmodel
 
 if False:  # dont scan subspace
     linmodel = Subspace(sig)
@@ -172,7 +171,7 @@ if False:  # dont scan subspace
     linmodel.optimize(weight=weight)
     print(f"Best subspace model, n, r: {linmodel.n}, {linmodel.r}")
     
-
+linmodel = deepcopy(linmodel_orig)
 # estimate PNLSS
 # transient: Add one period before the start of each realization. Note that
 # this is for the signal averaged over periods
@@ -191,11 +190,12 @@ poly3x = Polynomial_x(exponent=4,w=[0,1])
 nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
 nly2 = NLS([poly1x,poly2x])
 #nlx2 = NLS([poly2x, poly1y])
-
-#nlx2 = NLS([Pnlss('x', 2, 'full')])
-#nlx2 = NLS([Pnlss(degree=2, structure='full')])
-
 nly2 = None
+
+nlx2 = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
+
+#nlx2 = NLS([Pnlss(degree=[2,3], structure='full')])
+#nly2 = NLS([Pnlss(degree=[2,3], structure='full')])
 
 model = NLSS(linmodel)
 model.add_nl(nlx=nlx2, nly=nly2)

@@ -77,9 +77,8 @@ class Pnlss(Nonlinear_Element):
         return np.array([])
     
     def dfdx(self,x,y,u):
-        x = np.atleast_2d(x)
         # number of x signals wrt which derivatives are taken
-        n = x.shape[1]
+        n = np.atleast_2d(x).shape[1]
         signal = np.atleast_2d(np.hstack((x, u))).T
         # n_all = number of signals x and u; ns = number of samples
         n_all, ns = signal.shape
@@ -108,23 +107,6 @@ class Pnlss(Nonlinear_Element):
                 return df(oher args)
         """
         pass
-
-#from pyvib.polynomial import multEdwdx
-
-#pnlss = Pnlss('x', 2, 'full')    
-#pnlss.set_active(2,1,1,2)
-#
-#x = np.array([2,1])
-#u = np.array([1])
-#
-#dhdy = pnlss.dfdx(x,1,u)
-#signal = np.atleast_2d(np.hstack((x, u))).T
-#n = 2
-#E = np.arange(n*pnlss.n_nx).reshape(n,pnlss.n_nx)
-#
-#Edx = multEdwdx(signal, pnlss.d_powers, pnlss.d_coeff, E, n)
-#
-#Gdidy = np.einsum('ij,jkl->ikl',E,dhdy)
 
 
 class Polynomial_x(Nonlinear_Element):
@@ -285,7 +267,6 @@ class NLS(object):
         # If the same NLS object is used multiple times, we need to
         # reset the active count, as done here.
         self.active = np.array([],dtype=np.intp)
-        self.jac_active = np.array([],dtype=np.intp)
         self.xactive = np.array([],dtype=np.intp)
         self.yactive = np.array([],dtype=np.intp)
         n_nl = 0
@@ -301,29 +282,43 @@ class NLS(object):
 
         # get permution index for combining JE and JG. We need this so
         # θ(flattened parameters) correspond to the right place in the jacobian
+        # TODO can only use either x or y elements, note the bool! hack
         nlj = 0
         self.jac_x = np.array([],dtype=np.intp)
         self.jac_y = np.array([],dtype=np.intp)
         for nl in self.nls:
             active = np.r_[nl.active]
             self.jac_x = np.r_[self.jac_x, nlj                       +\
-                          np.r_[:nl.n_nx*len(active)]]
+                          np.r_[:bool(nl.n_nx)*len(active)]]
             self.jac_y = np.r_[self.jac_y, nlj + nl.n_nx*len(active) +\
-                          np.r_[:nl.n_ny*len(active)]]
+                          np.r_[:bool(nl.n_ny)*len(active)]]
             nlj += nl.n_nl*len(active)
 
-        # get (local) index in splitted E/G matrix
-        col = np.mod(self.active,self.n_nl)
-        row = (self.active-col)//self.n_nl
-        for i, lcol in enumerate(self.idx):
-            idx = col == lcol
-            tmp = row[idx]*len(self.idx) + i
-            self.xactive = np.r_[self.xactive, tmp]
-            
-        for i, lcol in enumerate(self.idy):
-            idx = col == lcol
-            tmp = row[idx]*len(self.idy) + i
-            self.yactive = np.r_[self.yactive, tmp]
+        n_nx = 0
+        for nl in self.nls:
+            # convert local index to global index. Active elements in global E
+            npar = nl.n_nx
+            if npar == 0:
+                continue
+            active = np.r_[nl.active]  # active might be a slice -> convert
+            col = np.mod(active, npar)
+            row = (active-col)// npar
+            idx = row*self.n_nx + col
+            self.xactive = np.r_[self.xactive, n_nx + idx]
+            n_nx += npar
+        
+        n_ny = 0
+        for nl in self.nls:
+            # convert local index to global index. Active elements in global E
+            npar = nl.n_ny
+            if npar == 0:
+                continue
+            active = np.r_[nl.active]  # active might be a slice -> convert
+            col = np.mod(active, npar)
+            row = (active-col)// npar
+            idx = row*self.n_ny + col
+            self.yactive = np.r_[self.yactive, n_ny + idx]
+            n_ny += npar
 
 
     def fnl(self,x,y,u):
@@ -404,6 +399,51 @@ class NLS(object):
         return dfdx
 
 
+#poly1y = Polynomial(exponent=2,w=1)
+#poly2y = Polynomial(exponent=3,w=1)
+#poly3y = Polynomial(exponent=4,w=1)
+#
+#poly1x = Polynomial_x(exponent=2,w=[0,1])
+#poly2x = Polynomial_x(exponent=3,w=[0,1])
+#poly3x = Polynomial_x(exponent=4,w=[0,1])
+## nlx2 = NLS([poly1,poly2])  #,poly3])
+##nlx2 = NLS([poly2x,poly1y,poly3y])  #,poly3])
+#nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
+#nly2 = NLS([poly1x,poly2x])
+##nlx2 = NLS([poly2x, poly1y])
+#
+##nlx2 = NLS([Pnlss('x', 2, 'full')])
+#nlx1 = NLS([Pnlss(degree=[2], structure='full')])
+#
+#nlx1.set_active(2,1,1,2)
+#nlx2.set_active(2,1,1,2)
+#
+#nly2.set_active(2,1,1,1)
+
+#from pyvib.polynomial import multEdwdx, nl_terms
+#
+#pnlss = Pnlss(degree=2, structure='full',eq='x')    
+#pnlss.set_active(2,1,1,2)
+#
+#t = np.arange(100)/100
+#u  = np.atleast_2d(np.sin(2*np.pi*t)).T
+#x = np.random.rand(100,2)
+#
+##x = np.array([2,1])
+##u = np.array([1])
+#signal = np.hstack((x, u)).T
+#zeta = nl_terms(signal, pnlss.powers)  # (n_nx, nts)
+#fnl = pnlss.fnl(x,0,u)
+#print(np.allclose(zeta, fnl))
+#
+#dhdy = pnlss.dfdx(x,1,u)
+#signal = np.atleast_2d(np.hstack((x, u))).T
+#n = 2
+#E = np.arange(n*pnlss.n_nx).reshape(n,pnlss.n_nx)
+#
+#Edx = multEdwdx(signal, pnlss.d_powers, pnlss.d_coeff, E, n)
+#Gdidy = np.einsum('ij,jkl->ikl',E,dhdy)
+#print(np.allclose(Edx, Gdidy))
 
 #exponent = np.array([3])
 #w = [1,0]
