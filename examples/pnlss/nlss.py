@@ -52,8 +52,18 @@ F = np.array([])
 nly = None
 #F = np.array([[-0.00867042, -0.00636662]])
 
-E = np.array([[1.88130305e-01, -2.70291900e-01],
-              [-5.35196110e-01, -3.66250013e-01]])
+E = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03,
+               -5.78088500e-01, 9.54588221e-03, 5.08576019e-04,
+               -1.33890850e+00, -2.02171960e+00,-4.05918956e-01,
+               -1.37744223e+00, 1.21206232e-01,-9.26349423e-02,
+               -5.38072197e-01, 2.34134460e-03, 4.94334690e-02,
+               -1.88329572e-02],
+              [-5.35196110e-01, -3.66250013e-01, 2.34622651e-02,
+               1.43228677e-01, -1.35959331e-02, 1.32052696e-02,
+               7.98717915e-01, 1.35344901e+00, -5.29440815e-02,
+               4.88513652e-01, 7.81285093e-01, -3.41019453e-01,
+               2.27692972e-01, 7.70150211e-02, -1.25046731e-02,
+               -1.62456154e-02]])
 
 poly1y = Polynomial(exponent=2,w=1)
 poly2y = Polynomial(exponent=3,w=1)
@@ -63,10 +73,13 @@ poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
 poly3x = Polynomial_x(exponent=4,w=[0,1])
 
-
+E = E[:,:2]
 nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
 #nly = NLS([poly1x,poly2x])
 
+
+#E = E[:,:6]
+#nlx = NLS([Pnlss(degree=2, structure='full')])
 #E = np.array([[1.88130305e-01],
 #              [-5.35196110e-01]])
 #nlx = NLS([poly1])  # nls in state eq
@@ -180,6 +193,7 @@ nly2 = NLS([poly1x,poly2x])
 #nlx2 = NLS([poly2x, poly1y])
 
 #nlx2 = NLS([Pnlss('x', 2, 'full')])
+#nlx2 = NLS([Pnlss(degree=2, structure='full')])
 
 nly2 = None
 

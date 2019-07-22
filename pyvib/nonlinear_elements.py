@@ -15,35 +15,44 @@ from pyvib.polynomial import combinations, nl_terms, poly_deriv, select_active
 class Nonlinear_Element:
     """Bare class
     """
-    pass
+    def __init__(self, **kwargs):
+        self.n_nx = 0
+        self.n_ny = 0
+        self._active = np.array([],dtype=np.intp)
+        super().__init__(**kwargs)
+        
+    @property
+    def n_nl(self):
+        """Total number of nonlinear functions in class"""
+        return self.n_nx + self.n_ny
+    
+    @property
+    def active(self):
+        """Returns active part of E"""
+        return self._active
 
 
 class Pnlss(Nonlinear_Element):
     """Combinations of monomials in x and u"""
 
-    def __init__(self, eq, degree, structure):
+    def __init__(self, degree, structure, eq = None, **kwargs):
         """Initialize active nonlinear terms/monomials to be optimized"""
-        self.eq = eq
         self.degree = np.asarray(degree)
         self.structure = structure
-        self.n_ny = 0
-            
-    @property
-    def active(self):
-        return self._active
+        self.eq = eq
+        super().__init__(**kwargs)
     
     def set_active(self,n,m,p,q):
         # all possible terms
         self.powers = combinations(n+m, self.degree)
         self.n_nx = self.powers.shape[0]
-        self.n_nl = self.n_nx
+        #self.n_nl = self.n_nx
         
-        # This is not needed. We can use q. q = n for 'x' and q = p for 'y'
-        if self.eq in ('state', 'x'):
-            active = select_active(self.structure,n,m,n,self.degree)
-        if self.eq in ('output', 'y'):
-            active = select_active(self.structure,n,m,p,self.degree)
-        
+        # for backward-compability
+        if self.eq in ('state', 'x'): q = n
+        if self.eq in ('output', 'y'): q = p
+        # q = n for 'x' and q = p for 'y'
+        active = select_active(self.structure,n,m,q,self.degree)
         self._active = active
         # Compute the derivatives of the polynomials
         self.d_powers, self.d_coeff = poly_deriv(self.powers)
@@ -68,7 +77,9 @@ class Pnlss(Nonlinear_Element):
         return np.array([])
     
     def dfdx(self,x,y,u):
-        n = len(x)  # len returns 1dim(x.shape[0]) and allows x to be list.
+        x = np.atleast_2d(x)
+        # number of x signals wrt which derivatives are taken
+        n = x.shape[1]
         signal = np.atleast_2d(np.hstack((x, u))).T
         # n_all = number of signals x and u; ns = number of samples
         n_all, ns = signal.shape
@@ -117,18 +128,15 @@ class Pnlss(Nonlinear_Element):
 
 
 class Polynomial_x(Nonlinear_Element):
-    def __init__(self, exponent, w):
+    def __init__(self, exponent, w, **kwargs):
         self.w = np.atleast_2d(w)
         self.exponent = np.atleast_1d(exponent)
+
+        super().__init__(**kwargs)
+
         # number of nonlinear elements
         self.n_nx = 1
         self.n_ny = 0
-        self.n_nl = self.n_nx + self.n_ny
-        self._active = np.array([],dtype=np.intp)
-        
-    @property
-    def active(self):
-        return self._active
         
     def set_active(self,n,m,p,q):
         # all are active
@@ -159,7 +167,7 @@ class Polynomial(Nonlinear_Element):
     """Polynomial output nonlinearity
     """
 
-    def __init__(self, exponent, w, structure='Full'):
+    def __init__(self, exponent, w, structure='Full',**kwargs):
         """
         exponents: ndarray (n_ny)
         w: ndarray (n_ny, p)
@@ -173,16 +181,10 @@ class Polynomial(Nonlinear_Element):
         self.w = np.atleast_2d(w)
         self.exponent = np.atleast_1d(exponent)
         self.structure = structure
+        super().__init__(**kwargs)
         # number of nonlinear elements
         self.n_nx = 0
         self.n_ny = 1
-        self.n_nl = self.n_nx + self.n_ny
-        self._active = np.array([],dtype=np.intp)
-        
-    @property
-    def active(self):
-        """Select active part of E"""
-        return self._active
         
     def set_active(self,n,m,p,q):
         # all are active
@@ -270,6 +272,7 @@ class NLS(object):
         # first we need to determine the total number of NLs. This can only be
         # done when the system size (n,m,p) is known
         for nl in self.nls:
+            nl.set_active(m,n,p,q)
             # Find columns in E(n,n_nl) matrix which correspond to x-dependent
             # nl (idx) and y-dependent (idy). Note it does not matter if we
             # have '+nl.n_nx' in self.idy or '+nl.n_ny' in self.idx
@@ -287,7 +290,6 @@ class NLS(object):
         self.yactive = np.array([],dtype=np.intp)
         n_nl = 0
         for nl in self.nls:
-            nl.set_active(m,n,p,q)
             # convert local index to global index. Active elements in global E
             npar = nl.n_nl
             active = np.r_[nl.active]  # active might be a slice -> convert
