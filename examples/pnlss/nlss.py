@@ -36,13 +36,21 @@ http://homepages.vub.ac.be/~ktiels/pnlss.html
 savefig = False
 add_noise = False
 weight = False
+p = 2
 
 ## Generate data from true model ##
 # Construct model to estimate
 A = np.array([[0.73915535, -0.62433133],[0.6247377, 0.7364469]])
 B = np.array([[0.79287245], [-0.34515159]])
-C = np.array([[0.71165154, 0.34917771]])
-D = np.array([[0.04498052]])
+if p == 1:
+    C = np.array([[0.71165154, 0.34917771]])
+    D = np.array([[0.04498052]])
+elif p == 2:
+    #C = np.array([[0.71165154, 0.34917771], [-0.001565625, -0.004855156]])
+    #D = np.array([[0.04498052],[0]])
+    C = np.array([[0.71165154, 0.34917771], [0.71165154, 0.34917771]])
+    D = np.array([[0.04498052],[0.04498052]])
+
 Ffull = np.array([[-0.00867042, -0.00636662, 0.00197873, -0.00090865, -0.00088879,
                -0.02759694, -0.01817546, -0.10299409, 0.00648549, 0.08990175,
                0.21129849, 0.00030216, 0.03299013, 0.02058325, -0.09202439,
@@ -62,9 +70,16 @@ Efull = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03,
 Eextra = np.array([[-3.165156145e-02, -5.12315312e-02],
                    [2.156132115e-02,  1.46517548e-02]])
 
-poly1y = Polynomial(exponent=2,w=1)
-poly2y = Polynomial(exponent=3,w=1)
-poly3y = Polynomial(exponent=4,w=1)
+    
+if p == 1:
+    Wy = [1]
+elif p ==2:
+    Wy = [1,0]
+
+
+poly1y = Polynomial(exponent=2,w=Wy)
+poly2y = Polynomial(exponent=3,w=Wy)
+poly3y = Polynomial(exponent=4,w=Wy)
 
 poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
@@ -73,35 +88,15 @@ poly3x = Polynomial_x(exponent=4,w=[0,1])
 F = np.array([])
 nly = None
 
-E = Efull[:,:2]
 nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
-#nly = NLS([poly1x,poly2x])
+nlx = NLS([poly2y])
+nlx = NLS([poly2x])
+E = Efull[:,:len(nlx.nls)]
 
-#E = Efull
-#nlx = NLS([Pnlss(degree=[2,3], structure='full')])
-#F = Ffull
-#nly = NLS([Pnlss(degree=[2,3], structure='full')])
 
-#E = np.hstack((Efull, Eextra))
-#nlx = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
-
-#E = np.array([[3.165156145e-03],
-#             [2.156132115e-03]])
-#nlx = NLS([Tanhdryfriction(eps=0.1, w=[1])])
-#E = np.array([[3.165156145e-03],
-#             [2.156132115e-03]])
-#gap = 0.25
-#nlx = NLS([Unilatteralspring(gap=gap, w=[1])])
-#E = np.array([])
-#nlx = None
-
-# No nls in output eq
 true_model = NLSS(A, B, C, D, E, F)
 true_model.add_nl(nlx=nlx, nly=nly)
 
-
-#true_model.nlterms('x', [2,3], 'full')
-#%true_model.nlterms('y', [2,3], 'full')
 
 # excitation signal
 RMSu = 0.05   # Root mean square value for the input signal
@@ -110,8 +105,8 @@ R = 4         # Number of phase realizations (one for validation and one for
               # testing)
 P = 3         # Number of periods
 kind = 'Odd'  # 'Full','Odd','SpecialOdd', or 'RandomOdd': kind of multisine
-m = 1         # number of inputs
-p = 1         # number of outputs
+m = D.shape[1]         # number of inputs
+p = C.shape[0]         # number of outputs
 fs = 1        # normalized sampling rate
 Ntr = 1
 if True:
@@ -124,9 +119,16 @@ if True:
     # Transient: Add one period before the start of each realization. To generate
     # steady state data.
     T1 = np.r_[npp*Ntr, np.r_[0:(R-1)*P*npp+1:P*npp]]
-    _, y, _ = true_model.simulate(u.ravel(), T1=T1)
+    _, yorig, _ = true_model.simulate(u.ravel(), T1=T1)
     u = u.reshape((R,P,npp)).transpose((2,0,1))[:,None]  # (npp,m,R,P)
-    y = y.reshape((R,P,npp)).transpose((2,0,1))[:,None]
+    if p == 1:
+        y = yorig.reshape((R,P,npp)).transpose((2,0,1))[:,None]
+    elif p == 2:
+        # This works!
+        # y2 = yorig.reshape((R,P,npp,p)).transpose((2,3,0,1))
+        y = np.empty((npp,p,R,P))
+        y[:,0] = yorig[:,0].reshape((R,P,npp)).transpose((2,0,1))
+        y[:,1] = yorig[:,1].reshape((R,P,npp)).transpose((2,0,1))
     
     # Add colored noise to the output. randn generate white noise
     if add_noise:
@@ -155,7 +157,7 @@ if True:
     sig = Signal(uest,yest,fs=fs)
     sig.lines = lines
     # plot periodicity for one realization to verify data is steady state
-    # sig.periodicity()
+    sig.periodicity()
     # Calculate BLA, total- and noise distortion. Used for subspace identification
     sig.bla()
     # average signal over periods. Used for training of PNLSS model
@@ -164,6 +166,7 @@ if True:
 # model orders and Subspace dimensioning parameter
 nvec = [2,3]
 maxr = 5
+
 
 if 'linmodel' not in locals() or True:
     linmodel = Subspace(sig)
@@ -189,9 +192,9 @@ linmodel = deepcopy(linmodel_orig)
 Rest = yest.shape[2]
 T1 = np.r_[npp*Ntr, np.r_[0:(Rest-1)*npp+1:npp]]
 
-poly1y = Polynomial(exponent=2,w=1)
-poly2y = Polynomial(exponent=3,w=1)
-poly3y = Polynomial(exponent=4,w=1)
+poly1y = Polynomial(exponent=2,w=Wy)
+poly2y = Polynomial(exponent=3,w=Wy)
+poly3y = Polynomial(exponent=4,w=Wy)
 
 poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
@@ -199,7 +202,11 @@ poly3x = Polynomial_x(exponent=4,w=[0,1])
 # nlx2 = NLS([poly1,poly2])  #,poly3])
 #nlx2 = NLS([poly2x,poly1y,poly3y])  #,poly3])
 nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
-nly2 = NLS([poly1x,poly2x])
+
+nlx2 = NLS([poly2x])
+# nlx2 = NLS([poly2y])  #,poly3])
+
+#nly2 = NLS([poly1x,poly2x])
 #nlx2 = NLS([poly2x, poly1y])
 nly2 = None
 #nlx2 = None
@@ -338,5 +345,10 @@ nlx = NLS([poly2y, poly1y])  #, poly3])
 
 nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
 nly2 = None
+
+E = Efull
+nlx = NLS([Pnlss(degree=[2,3], structure='full')])
+F = Ffull
+nly = NLS([Pnlss(degree=[2,3], structure='full')])
 
 """
