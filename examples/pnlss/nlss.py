@@ -85,13 +85,13 @@ nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
 #E = np.hstack((Efull, Eextra))
 #nlx = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
 
-E = np.array([[3.165156145e-03],
-             [2.156132115e-03]])
-nlx = NLS([Tanhdryfriction(eps=0.1, w=[1])])
-E = np.array([[3.165156145e-03],
-             [2.156132115e-03]])
-gap = 0.25
-nlx = NLS([Unilatteralspring(gap=gap, w=[1])])
+#E = np.array([[3.165156145e-03],
+#             [2.156132115e-03]])
+#nlx = NLS([Tanhdryfriction(eps=0.1, w=[1])])
+#E = np.array([[3.165156145e-03],
+#             [2.156132115e-03]])
+#gap = 0.25
+#nlx = NLS([Unilatteralspring(gap=gap, w=[1])])
 #E = np.array([])
 #nlx = None
 
@@ -104,7 +104,7 @@ true_model.add_nl(nlx=nlx, nly=nly)
 #%true_model.nlterms('y', [2,3], 'full')
 
 # excitation signal
-RMSu = 0.5   # Root mean square value for the input signal
+RMSu = 0.05   # Root mean square value for the input signal
 npp = 1024    # Number of samples
 R = 4         # Number of phase realizations (one for validation and one for
               # testing)
@@ -113,7 +113,7 @@ kind = 'Odd'  # 'Full','Odd','SpecialOdd', or 'RandomOdd': kind of multisine
 m = 1         # number of inputs
 p = 1         # number of outputs
 fs = 1        # normalized sampling rate
-Ntr = 6
+Ntr = 1
 if True:
     # get predictable random numbers. https://dilbert.com/strip/2001-10-25
     np.random.seed(10)
@@ -202,11 +202,11 @@ nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
 nly2 = NLS([poly1x,poly2x])
 #nlx2 = NLS([poly2x, poly1y])
 nly2 = None
-nlx2 = None
+#nlx2 = None
 
 #nlx2 = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
-nlx2 = NLS([Tanhdryfriction(eps=0.1, w=[1])])
-nlx2 = NLS([Unilatteralspring(gap=gap, w=[1])])
+#nlx2 = NLS([Tanhdryfriction(eps=0.1, w=[1])])
+#nlx2 = NLS([Unilatteralspring(gap=gap, w=[1])])
 
 #nlx2 = NLS([Pnlss(degree=[2,3], structure='full')])
 #nly2 = NLS([Pnlss(degree=[2,3], structure='full')])
@@ -330,5 +330,13 @@ E = np.array([[3.165156145e-03],
 gap = 0.25
 nlx = NLS([Unilatteralspring(gap=gap, w=[1])])
 ----
+
+RMSu = 0.05
+Ntr = 5
+E = Efull[:,:2]
+nlx = NLS([poly2y, poly1y])  #, poly3])
+
+nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
+nly2 = None
 
 """

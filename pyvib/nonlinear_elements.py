@@ -209,18 +209,18 @@ class Polynomial_x(Nonlinear_Element):
 
 class Polynomial(Nonlinear_Element):
     """Polynomial output nonlinearity
+    
+    Example
+    -------
+    fnl = (y₁-y₂)ẏ₁, where y = [y₁, y₂, ẏ₁, ẏ₂]
+    exponents = [1,1]
+    w = np.array([[1,-1,0,0], [0,1,0,0]]
     """
 
     def __init__(self, exponent, w, structure='Full',**kwargs):
         """
         exponents: ndarray (n_ny)
         w: ndarray (n_ny, p)
-
-        Example
-        -------
-        fnl = y₁ẏ₁, y = [y₁, y₂, ẏ₁, ẏ₂]
-        exponents = [1,1]
-        w = [1,0,1,0]
         """
         self.w = np.atleast_2d(w)
         self.exponent = np.atleast_1d(exponent)
@@ -235,13 +235,11 @@ class Polynomial(Nonlinear_Element):
         self._active = np.r_[0:q*self.n_nl]
 
     def fnl(self, x,y,u):
-        w = self.w
         y = np.atleast_2d(y)
         # displacement of dofs attached to nl
-        ynl = np.inner(w, y)  # (n_ny, ns)
-        f = np.prod(ynl.T**self.exponent, axis=1)
-
-        return f
+        ynl = y @ self.w.T  # [nt, yactive]
+        fnl = np.prod(ynl**self.exponent, axis=1)
+        return fnl
 
     def dfdx(self,x,y,u):
         """Output nl, thus zero"""
@@ -249,13 +247,21 @@ class Polynomial(Nonlinear_Element):
 
     def dfdy(self,x,y,u):
         """
-        dfdy (p, n_nx, ns)
+        dfdy (1, p, ns)
         """
-        w = self.w
+        exp = self.exponent
         y = np.atleast_2d(y)
-        ynl = np.inner(w, y)
-        dfdy = np.einsum('i,j,k->ikj',w, 
-                         self.exponent[:,None] * ynl**(self.exponent-1), w)
+        ynl = y @ self.w.T
+
+        Ptmp = np.eye(self.w.shape[0])
+        dfdyP = np.zeros((1, len(exp), y.shape[0]))  # [self.n_ny, yactive,nt]
+        # derivative wrt. each coloumn in ynl(or row in w). Denoted yactive
+        for ip in range(self.w.shape[0]):
+            dfdyP[0,ip,:] = exp[ip]*np.prod(ynl**(exp-Ptmp[ip]), axis=1)
+
+        # derivative wrt all y.
+        dfdy = np.einsum('ijk,jl->ilk',dfdyP, self.w)
+        
         return dfdy
 
 
