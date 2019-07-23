@@ -98,7 +98,6 @@ class _rfsPlotBuilder(object):
 
         plt.show()
 
-
     def slider_update(self, value):
 
         self.rfs.tol_slice = value
@@ -241,8 +240,7 @@ class _rfsPlotBuilder(object):
         self.ax2d.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
 
-from .signal import Signal
-class RFS(Signal):
+class RFS():
     def __init__(self, signal, dof=0, show_damped = False):
         """ Show a Restoring Force Surface, which gives a visual idea of the
         type of nonlinearity(if any)
@@ -254,7 +252,7 @@ class RFS(Signal):
         Parameters:
         -----------
         dof : list: [dof_i], [dof_i, dof_j] or empty
-            dofs to compare. If none, then compare to ground. If [dof_i], then
+            dofs to compare. If None, then compare to ground. If [dof_i], then
             compare dof_i to ground. Else compare dof_i to dof_j
         show_damp : bool
             show stifness or damping coeff.
@@ -283,10 +281,6 @@ class RFS(Signal):
             self.yd = yd[dof[0],:] - yd[dof[1],:]
 
         self.ydd = signal.ydd[dof[0],:]
-
-
-
-
 
     def update_sel(self, id0, id1=-1, show_damped=False):
         """ Update RFS for the given selection

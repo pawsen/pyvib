@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pickle
 from collections import namedtuple
 
-from pyvib.signal import Signal
+from pyvib.signal import Signal2 as Signal
 from pyvib.rfs import RFS
 
 path = 'data/'
@@ -22,7 +22,7 @@ signal.set_signal(y=sweep_h.y, yd=sweep_h.yd, ydd=sweep_h.ydd)
 rfs = RFS(signal, dof=0)
 rfs.plot()
 
-
+plt.show()
 # extract force slice/subplot for saving
 # ax2 = rfs.plot.ax2d
 # fig2 = plt.figure()

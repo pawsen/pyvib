@@ -7,7 +7,7 @@ import pickle
 from collections import namedtuple
 
 from pyvib.morletWT import WT
-from pyvib.signal import Signal
+from pyvib.signal import Signal2 as Signal
 
 path = 'data/'
 filename = 'pyds_sweepvrms'
