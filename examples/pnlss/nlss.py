@@ -11,7 +11,8 @@ from pyvib.common import db
 from pyvib.forcing import multisine
 from pyvib.frf import covariance
 from pyvib.nlss import NLSS
-from pyvib.nonlinear_elements import NLS, Pnlss, Polynomial, Polynomial_x
+from pyvib.nonlinear_elements import (NLS, Pnlss, Polynomial, Polynomial_x,
+                                      Tanhdryfriction)
 from pyvib.signal import Signal
 from pyvib.subspace import Subspace
 
@@ -33,7 +34,7 @@ http://homepages.vub.ac.be/~ktiels/pnlss.html
 
 # save figures to disk
 savefig = False
-add_noise = True
+add_noise = False
 weight = False
 
 ## Generate data from true model ##
@@ -78,11 +79,18 @@ nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
 
 #E = Efull
 #nlx = NLS([Pnlss(degree=[2,3], structure='full')])
-F = Ffull
-nly = NLS([Pnlss(degree=[2,3], structure='full')])
+#F = Ffull
+#nly = NLS([Pnlss(degree=[2,3], structure='full')])
 
-E = np.hstack((Efull, Eextra))
-nlx = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
+#E = np.hstack((Efull, Eextra))
+#nlx = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
+
+E = np.array([[3.165156145e-03],
+             [2.156132115e-03]])
+nlx = NLS([Tanhdryfriction(eps=0.1, w=[1])])
+
+#E = np.array([])
+#nlx = None
 
 # No nls in output eq
 true_model = NLSS(A, B, C, D, E, F)
@@ -102,7 +110,7 @@ kind = 'Odd'  # 'Full','Odd','SpecialOdd', or 'RandomOdd': kind of multisine
 m = 1         # number of inputs
 p = 1         # number of outputs
 fs = 1        # normalized sampling rate
-
+Ntr = 5
 if True:
     # get predictable random numbers. https://dilbert.com/strip/2001-10-25
     np.random.seed(10)
@@ -112,7 +120,7 @@ if True:
     
     # Transient: Add one period before the start of each realization. To generate
     # steady state data.
-    T1 = np.r_[npp, np.r_[0:(R-1)*P*npp+1:P*npp]]
+    T1 = np.r_[npp*Ntr, np.r_[0:(R-1)*P*npp+1:P*npp]]
     _, y, _ = true_model.simulate(u.ravel(), T1=T1)
     u = u.reshape((R,P,npp)).transpose((2,0,1))[:,None]  # (npp,m,R,P)
     y = y.reshape((R,P,npp)).transpose((2,0,1))[:,None]
@@ -176,7 +184,7 @@ linmodel = deepcopy(linmodel_orig)
 # transient: Add one period before the start of each realization. Note that
 # this is for the signal averaged over periods
 Rest = yest.shape[2]
-T1 = np.r_[npp, np.r_[0:(Rest-1)*npp+1:npp]]
+T1 = np.r_[npp*Ntr, np.r_[0:(Rest-1)*npp+1:npp]]
 
 poly1y = Polynomial(exponent=2,w=1)
 poly2y = Polynomial(exponent=3,w=1)
@@ -191,8 +199,10 @@ nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
 nly2 = NLS([poly1x,poly2x])
 #nlx2 = NLS([poly2x, poly1y])
 nly2 = None
+nlx2 = None
 
-nlx2 = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
+#nlx2 = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
+nlx2 = NLS([Tanhdryfriction(eps=0.1, w=[1])])
 
 #nlx2 = NLS([Pnlss(degree=[2,3], structure='full')])
 #nly2 = NLS([Pnlss(degree=[2,3], structure='full')])
@@ -216,8 +226,8 @@ val = np.empty((len(models),len(uval)))
 est = np.empty((len(models),len(um)))
 test = np.empty((len(models),len(utest)))
 for i, model in enumerate(models):
-    test[i] = model.simulate(utest, T1=npp)[1].T
-    val[i] = model.simulate(uval, T1=npp)[1].T
+    test[i] = model.simulate(utest, T1=npp*Ntr)[1].T
+    val[i] = model.simulate(uval, T1=npp*Ntr)[1].T
     est[i] = model.simulate(um, T1=T1)[1].T
 
 rms = lambda y: np.sqrt(np.mean(y**2, axis=0))

@@ -16,9 +16,13 @@ class Nonlinear_Element:
     """Bare class
     """
     def __init__(self, **kwargs):
-        self.n_nx = 0
-        self.n_ny = 0
-        self._active = np.array([],dtype=np.intp)
+        # only initialize things if they are not already set
+        if not hasattr(self, 'n_nx'):
+            self.n_nx = 0
+        if not hasattr(self, 'n_ny'):
+            self.n_ny = 0
+        if not hasattr(self, '_active'):
+            self._active = np.array([],dtype=np.intp)
         super().__init__(**kwargs)
         
     @property
@@ -31,6 +35,39 @@ class Nonlinear_Element:
         """Returns active part of E"""
         return self._active
 
+class Tanhdryfriction(Nonlinear_Element):
+    """Friction model. sign(ẏ) approximated by tanh. eps control the slope.
+    Make sure the velocity is included in the output of the state space model
+    """
+    def __init__(self, eps, w, **kwargs):
+        self.eps = eps
+        self.w = np.atleast_1d(w)
+        self.n_nx = 1
+        super().__init__(**kwargs)
+
+        
+    def set_active(self,n,m,p,q):
+        # all are active
+        self._active = np.s_[0:q*self.n_nl]
+    
+    def fnl(self, x,y,u):
+        y = np.atleast_2d(y)
+        # displacement of dofs attached to nl
+        ynl =np.inner(self.w, y)  # (n_nx, ns)
+        f = np.tanh(ynl / self.eps)
+        return f
+
+    def dfdx(self,x,y,u):
+        return np.array([])
+
+    def dfdy(self,x,y,u):
+        
+        w = self.w
+        y = np.atleast_2d(y)
+        ynl = np.inner(w, y)
+        dfdy = np.einsum('i,j,k->ikj',w, 
+                         (1 - np.tanh(ynl / self.eps)**2) / self.eps, w)
+        return dfdy
 
 class Pnlss(Nonlinear_Element):
     """Combinations of monomials in x and u"""
@@ -46,7 +83,6 @@ class Pnlss(Nonlinear_Element):
         # all possible terms
         self.powers = combinations(n+m, self.degree)
         self.n_nx = self.powers.shape[0]
-        #self.n_nl = self.n_nx
         
         # for backward-compability
         if self.eq in ('state', 'x'): q = n
@@ -158,7 +194,7 @@ class Polynomial(Nonlinear_Element):
         -------
         fnl = y₁ẏ₁, y = [y₁, y₂, ẏ₁, ẏ₂]
         exponents = [1,1]
-        w = np.array([[1,0,0,0], [0,0,1,0]])
+        w = [1,0,1,0]
         """
         self.w = np.atleast_2d(w)
         self.exponent = np.atleast_1d(exponent)
@@ -170,7 +206,6 @@ class Polynomial(Nonlinear_Element):
         
     def set_active(self,n,m,p,q):
         # all are active
-        #pass
         self._active = np.r_[0:q*self.n_nl]
 
     def fnl(self, x,y,u):
@@ -183,9 +218,9 @@ class Polynomial(Nonlinear_Element):
         f: ndarray (ns,)
         """
         w = self.w
-        y = np.atleast_1d(y)
+        y = np.atleast_2d(y)
         # displacement of dofs attached to nl
-        ynl = np.atleast_2d(np.inner(w, y)) # maybe y.T  # (n_ny, ns)
+        ynl = np.inner(w, y)  # (n_ny, ns)
         f = np.prod(ynl.T**self.exponent, axis=1)
 
         return f
@@ -200,7 +235,7 @@ class Polynomial(Nonlinear_Element):
         dfdy (p,ns)  # should be (p, n_nx, ns)
         """
         w = self.w
-        y = np.atleast_1d(y)
+        y = np.atleast_2d(y)
         ynl = np.inner(w, y)
         # same as np.outer when we do w.T
         dfdy = self.exponent[:,None] * ynl**(self.exponent-1) * w.T # (p, ns)
@@ -398,6 +433,18 @@ class NLS(object):
         
         return dfdx
 
+
+
+#t = np.arange(100)/100
+#u  = np.atleast_2d(np.sin(2*np.pi*t)).T
+#y = np.empty((100,2))
+#y[:,0] = np.sin(2*np.pi*t)
+#y[:,1] = np.sin(np.pi*t)
+#eps = 0.05
+#tanh1 = Tanhdryfriction(eps=eps,w=[1,0])
+#tanh1.set_active(2,1,1,2)
+#fnl = tanh1.fnl(0,y,0)
+#dfdy = tanh1.dfdy(0,y,0)
 
 #poly1y = Polynomial(exponent=2,w=1)
 #poly2y = Polynomial(exponent=3,w=1)
