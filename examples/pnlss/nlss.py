@@ -12,7 +12,7 @@ from pyvib.forcing import multisine
 from pyvib.frf import covariance
 from pyvib.nlss import NLSS
 from pyvib.nonlinear_elements import (NLS, Pnlss, Polynomial, Polynomial_x,
-                                      Tanhdryfriction)
+                                      Tanhdryfriction, Unilatteralspring)
 from pyvib.signal import Signal
 from pyvib.subspace import Subspace
 
@@ -88,7 +88,10 @@ nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
 E = np.array([[3.165156145e-03],
              [2.156132115e-03]])
 nlx = NLS([Tanhdryfriction(eps=0.1, w=[1])])
-
+E = np.array([[3.165156145e-03],
+             [2.156132115e-03]])
+gap = 0.25
+nlx = NLS([Unilatteralspring(gap=gap, w=[1])])
 #E = np.array([])
 #nlx = None
 
@@ -101,7 +104,7 @@ true_model.add_nl(nlx=nlx, nly=nly)
 #%true_model.nlterms('y', [2,3], 'full')
 
 # excitation signal
-RMSu = 0.05   # Root mean square value for the input signal
+RMSu = 0.5   # Root mean square value for the input signal
 npp = 1024    # Number of samples
 R = 4         # Number of phase realizations (one for validation and one for
               # testing)
@@ -110,7 +113,7 @@ kind = 'Odd'  # 'Full','Odd','SpecialOdd', or 'RandomOdd': kind of multisine
 m = 1         # number of inputs
 p = 1         # number of outputs
 fs = 1        # normalized sampling rate
-Ntr = 5
+Ntr = 6
 if True:
     # get predictable random numbers. https://dilbert.com/strip/2001-10-25
     np.random.seed(10)
@@ -203,6 +206,7 @@ nlx2 = None
 
 #nlx2 = NLS([Pnlss(degree=[2,3], structure='full'), poly2y, poly1y])
 nlx2 = NLS([Tanhdryfriction(eps=0.1, w=[1])])
+nlx2 = NLS([Unilatteralspring(gap=gap, w=[1])])
 
 #nlx2 = NLS([Pnlss(degree=[2,3], structure='full')])
 #nly2 = NLS([Pnlss(degree=[2,3], structure='full')])
@@ -307,3 +311,24 @@ if savefig:
             f[0].savefig(f"fig/tutorial_{k}{i}.pdf")
 
 plt.show()
+
+
+"""
+Workable parameters
+-------------------
+RMSu = 0.05
+Ntr = 5
+E = np.array([[3.165156145e-03],
+             [2.156132115e-03]])
+nlx = NLS([Tanhdryfriction(eps=0.1, w=[1])])
+
+----
+RMSu = 0.05
+Ntr = 5
+E = np.array([[3.165156145e-03],
+             [2.156132115e-03]])
+gap = 0.25
+nlx = NLS([Unilatteralspring(gap=gap, w=[1])])
+----
+
+"""

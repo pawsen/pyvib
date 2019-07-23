@@ -34,6 +34,34 @@ class Nonlinear_Element:
     def active(self):
         """Returns active part of E"""
         return self._active
+    
+class Unilatteralspring(Nonlinear_Element):
+    """Unilatteral spring. Estimate the spring stiffness Kt"""
+    def __init__(self, gap, w, **kwargs):
+        self.gap = gap
+        self.w = np.atleast_1d(w)
+        self.n_ny = 1
+        super().__init__(**kwargs)
+        
+    def set_active(self,n,m,p,q):
+        # all are active
+        self._active = np.s_[0:q*self.n_nl]
+        
+    def fnl(self, x,y,u):
+        y = np.atleast_2d(y)
+        ynl =np.inner(self.w, y)  # (n_nx, ns)
+        return (ynl-self.gap) * (ynl - self.gap >= 0).astype(float)
+
+    def dfdx(self,x,y,u):
+        return np.array([])
+
+    def dfdy(self,x,y,u):
+        w = self.w
+        y = np.atleast_2d(y)
+        ynl = np.inner(w, y)
+        dfdy = np.einsum('i,j,k->ikj',w, 
+                        (ynl - self.gap >= 0).astype(float), w)
+        return dfdy    
 
 class Tanhdryfriction(Nonlinear_Element):
     """Friction model. sign(ẏ) approximated by tanh. eps control the slope.
@@ -42,10 +70,9 @@ class Tanhdryfriction(Nonlinear_Element):
     def __init__(self, eps, w, **kwargs):
         self.eps = eps
         self.w = np.atleast_1d(w)
-        self.n_nx = 1
+        self.n_ny = 1
         super().__init__(**kwargs)
 
-        
     def set_active(self,n,m,p,q):
         # all are active
         self._active = np.s_[0:q*self.n_nl]
@@ -61,7 +88,6 @@ class Tanhdryfriction(Nonlinear_Element):
         return np.array([])
 
     def dfdy(self,x,y,u):
-        
         w = self.w
         y = np.atleast_2d(y)
         ynl = np.inner(w, y)
@@ -209,14 +235,6 @@ class Polynomial(Nonlinear_Element):
         self._active = np.r_[0:q*self.n_nl]
 
     def fnl(self, x,y,u):
-        """
-        x: ndarray (n, ns)
-        y: ndarray (p, ns)
-
-        Return
-        ------
-        f: ndarray (ns,)
-        """
         w = self.w
         y = np.atleast_2d(y)
         # displacement of dofs attached to nl
@@ -231,14 +249,13 @@ class Polynomial(Nonlinear_Element):
 
     def dfdy(self,x,y,u):
         """
-        TODO: only works for single output, ex. y₁³
-        dfdy (p,ns)  # should be (p, n_nx, ns)
+        dfdy (p, n_nx, ns)
         """
         w = self.w
         y = np.atleast_2d(y)
         ynl = np.inner(w, y)
-        # same as np.outer when we do w.T
-        dfdy = self.exponent[:,None] * ynl**(self.exponent-1) * w.T # (p, ns)
+        dfdy = np.einsum('i,j,k->ikj',w, 
+                         self.exponent[:,None] * ynl**(self.exponent-1), w)
         return dfdy
 
 
@@ -358,6 +375,10 @@ class NLS(object):
 
     def fnl(self,x,y,u):
         """
+        x: ndarray (n, ns)
+        y: ndarray (p, ns)
+        u: ndarray (m, ns)
+
         Returns
         -------
         fnl: ndarray(n_nl, ns)
