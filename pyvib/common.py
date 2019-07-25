@@ -239,7 +239,7 @@ def normalize_columns(mat):
     return mat/scaling, scaling
 
 def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
-       gtol=1e-8, args=(), kwargs={}):
+       gtol=1e-8, cost_normalize=None, args=(), kwargs={}):
     """Solve a nonlinear least-squares problem using levenberg marquardt
        algorithm. See also :scipy-optimize:func:`scipy.optimize.least_squares`
 
@@ -288,6 +288,14 @@ def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
     x0_mat[0] = x0.copy()
     cost_vec[0] = cost.copy()
 
+    # Allow for different kinds of cost_normalization
+    if cost_normalize is None:
+        _cost_normalize = lambda x: x
+    elif np.isscalar(cost_normalize):
+        _cost_normalize = lambda x: x/cost_normalize
+    else:  # if callable(obj)
+        _cost_normalize = cost_normalize
+
     if info == 2:
         print(f"{'i':3} | {'inner':5} | {'cost':12} | {'cond':12} |"
               f" {'lambda':6}")
@@ -326,7 +334,6 @@ def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
             x0test = x0 + ds
             err = fun(x0test, *args, **kwargs)
             cost = np.dot(err,err)
-
             if cost >= cost_old:
                 # step unsuccessful, increase lambda, ie. Lean more towards
                 # gradient descent method(converges in larger range)
@@ -352,8 +359,8 @@ def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
         if info == 2:
             jac_cond = sr[0]/sr[-1]
             # {cost/2/nfd/R/p:12.3f} for freq weighting
-            print(f"{niter:3d} | {ninner:5d} | {cost:12.8g} | {jac_cond:12.3f}"
-                  f" | {lamb:6.3f}")
+            print(f"{niter:3d} | {ninner:5d} | {_cost_normalize(cost):12.8g}"
+                  f" | {jac_cond:12.3f} | {lamb:6.3f}")
 
         if cost < cost_old or stop:
             cost_old = cost
@@ -371,8 +378,9 @@ def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
     message = TERMINATION_MESSAGES[status]
     if info > 0:
         print(f"Terminated: {message:s}")
-        print(f"Function evaluations {nfev}, initial cost {cost_vec[0]:.4e}, "
-              f"final cost {cost:.4e}")
+        print(f"Function evaluations {nfev}, "
+              f"initial cost {_cost_normalize(cost_vec[0]):.4e}, "
+              f"final cost {_cost_normalize(cost):.4e}")
 
     res = {'x':x0, 'cost': cost, 'fun':err, 'niter': niter, 'x_mat':
            x0_mat[:niter], 'cost_vec':cost_vec[niter], 'message':message,

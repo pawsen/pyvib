@@ -374,6 +374,9 @@ class NonlinearStateSpace(StateSpace):
 class StateSpaceIdent():
     def __init__(self):
         self._weight = None
+        if not hasattr(self, '_cost_normalize'):
+            self._cost_normalize = 1
+
 
     def cost(self, x0=None, weight=False):
         if weight is True:
@@ -393,6 +396,15 @@ class StateSpaceIdent():
         self.freq_weight = True
         if weight is False:
             self.freq_weight = False
+            
+        if isinstance(self,NonlinearStateSpace) and not self.freq_weight:
+            # HACK. We want the cost function to show as rms. Ideally optimize
+            # took a signal to use for optimizing in. For now this will do
+            nt =  self.signal.ym.size  # (nt*p)
+            self._cost_normalize = lambda x: np.sqrt(x/nt)
+        if isinstance(self,NonlinearStateSpace) and self.freq_weight:
+            # should be weighted mean square cost function (divided by 2*NFD*R*p) 
+            pass
 
         if info:
             print(f'\nStarting {self.__class__.__name__} optimization')
@@ -402,7 +414,7 @@ class StateSpaceIdent():
         if method is None:
             res = lm(fun=self.costfcn, x0=x0, jac=self.jacobian, info=info,
                      nmax=nmax, lamb=lamb, ftol=ftol, xtol=xtol, gtol=gtol,
-                     kwargs=kwargs)
+                     cost_normalize=self._cost_normalize, kwargs=kwargs)
         else:
             res = least_squares(self.costfcn, x0, self.jacobian, method='lm',
                                 x_scale='jac', kwargs=kwargs)
@@ -462,7 +474,7 @@ def costfcn_time(x0, system, weight=False):
     # T2 = system.T2
     # p is the actual number of output in the signal, not the system output
     R, p, npp = system.signal.R, system.signal.p, system.signal.npp
-    p = system.p
+    # p = system.p
     nfd = npp//2
     # without_T2 = system.without_T2
 
@@ -476,10 +488,10 @@ def costfcn_time(x0, system, weight=False):
     t_mod, y_mod, x_mod = system.simulate(system.signal.um)
 
     # Compute the (weighted) error signal without transient
-    if system.signal._ydm is not None:
-        ym = np.hstack((system.signal.ym, system.signal._ydm))
-    else:
-        ym = system.signal.ym
+#    if system.signal._ydm is not None:
+#        ym = np.hstack((system.signal.ym, system.signal._ydm))
+#    else:
+    ym = system.signal.ym
 
     err = y_mod - ym  #[without_T2, :p] - system.signal.ym[without_T2]
     if weight is not False and system.freq_weight:

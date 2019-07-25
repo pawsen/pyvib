@@ -33,9 +33,8 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
             kwargs['dt'] = 1  # unit sampling
 
         super().__init__(*sys, **kwargs)
-
         self.nlx = NLS()
-        self.nly = NLS() 
+        self.nly = NLS()
 
     def set_signal(self,signal):
         self.signal = signal
@@ -241,23 +240,23 @@ def jacobian(x0, system, weight=False):
     # reshape so first row of JA is the derivative wrt all elements in A for
     # first time step, first putput, then second output, then next time,...
     JA = element_jacobian(x_trans, A_Edhdx, Gdidy, C_Fdjdx, np.arange(n**2))
-    JA = JA.transpose((2,0,1)).reshape((nts*p, n**2))
+    JA = JA.transpose((2,0,1)).reshape((nts*p, n**2),order='F')
     JA = JA[system.idx_remtrans]  # (p*ns,n**2)
 
     JB = element_jacobian(u_trans, A_Edhdx, Gdidy, C_Fdjdx, np.arange(n*m))
-    JB = JB.transpose((2,0,1)).reshape((nts*p, n*m))
+    JB = JB.transpose((2,0,1)).reshape((nts*p, n*m),order='F')
     JB = JB[system.idx_remtrans]  # (p*ns,n*m)
 
     if system.nlx.xactive.size:
         JE = element_jacobian(hvec, A_Edhdx, Gdidy, C_Fdjdx, system.nlx.xactive)
-        JE = JE.transpose((2,0,1)).reshape((nts*p, len(system.nlx.xactive)))
+        JE = JE.transpose((2,0,1)).reshape((nts*p, len(system.nlx.xactive)), order='F')
         JE = JE[system.idx_remtrans]  # (p*ns,nactiveE)
     else:
         JE = np.array([]).reshape(p*ns,0)
 
     if system.nlx.yactive.size:
         JG = element_jacobian(ivec, A_Edhdx, Gdidy, C_Fdjdx, system.nlx.yactive)
-        JG = JG.transpose((2,0,1)).reshape((nts*p, len(system.nlx.yactive)))
+        JG = JG.transpose((2,0,1)).reshape((nts*p, len(system.nlx.yactive)), order='F')
         JG = JG[system.idx_remtrans]  # (p*ns,nactiveE)
     else:
         JG = np.array([]).reshape(p*ns,0)
