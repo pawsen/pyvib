@@ -1,3 +1,101 @@
+* From old README
+*** Optional
+
+To generate the documentation you will need Sphinx:
+
+#+BEGIN_SRC sh
+  pip install sphinx
+  pip install sphinx_rtd_theme
+#+END_SRC
+
+
+And to run the tests you can use your favourite test runner, for example
+pytest:
+
+:   pip install pytest pytest-benchmark
+
+
+** Installing
+
+To install, use::
+
+#+BEGIN_SRC sh
+  python setup.py build_ext --inplace
+  python setup.py install
+#+END_SRC
+
+To generate a package, use:
+
+:   python setup.py sdist --dist-dir .
+
+
+** Documentation
+
+To generate the documentation, run in the =doc= folder:
+
+#+BEGIN_SRC sh
+  sphinx-apidoc --separate -f -o modules ../pyvib
+  make html
+#+END_SRC
+
+To push generated docs online on the =gh-pages= branch, run the helper script
+
+:   python push_documentation.py [remote]
+
+where ~remote~ is the name of the remote to push to. If not given, it will be
+asked.
+
+** Tests
+
+To run the tests, you can use your favourite test runner. For example, with
+pytest::
+
+:   py.test pyvib test_utils --benchmark-skip
+
+** Code analysis
+
+You can use pylint3 to perform static code analysis on the module.
+This can help identify bugs and give suggestions for improvements.
+
+To install, use:
+
+:   pip3 install pylint
+
+To perform the code analysis, use:
+
+:   pylint -d C --rcfile=pylint.cfg splipy/
+
+** Releasing
+
+To make a new release, it is recommended to install
+[[https://pypi.python.org/pypi/bumpversion][bumpversion]]. To make a new
+release, run:
+
+:   bumpversion <type>
+
+where =type= is one of =patch=, =minor= or =major=. This will up the version
+number, create a commit and a tag. To push this to github, use:
+
+:   git push --tags
+
+After that, to create the actual packages, run:
+
+#+BEGIN_SRC sh
+  rm -rf dist
+  python setup.py sdist
+  python setup.py bdist_wheel --universal
+#+END_SRC
+
+to create a source distribution and a wheel. These can then be uploaded where
+they need to be uploaded. The recommended way to do that is using
+[[https://pypi.python.org/pypi/twine][twine]]:
+
+:   twine upload dist/* -r <index>
+
+Where =index= is the name of the index in your =~/.pypirc= where you want to
+upload.
+
+
 * Other sysid packages
 this one seems good. Also check out the interface for Slicot.
 https://github.com/python-control/
