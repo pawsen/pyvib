@@ -207,98 +207,61 @@ class Polynomial_x(Nonlinear_Element):
         return dfdx
 
 
-
 class Polynomial(Nonlinear_Element):
-    def __init__(self, exponent, w, **kwargs):
+    """Polynomial output nonlinearity
+
+    Example
+    -------
+    fnl = (y₁-y₂)ẏ₁, where y = [y₁, y₂, ẏ₁, ẏ₂]
+    exponents = [1,1]
+    w = np.array([[1,-1,0,0], [0,1,0,0]]
+    """
+
+    def __init__(self, exponent, w, structure='Full',**kwargs):
+        """
+        exponents: ndarray (n_ny)
+        w: ndarray (n_ny, p)
+        """
         self.w = np.atleast_2d(w)
         self.exponent = np.atleast_1d(exponent)
-
+        self.structure = structure
         super().__init__(**kwargs)
-
         # number of nonlinear elements
         self.n_nx = 0
         self.n_ny = 1
         
     def set_active(self,n,m,p,q):
         # all are active
-        self._active = np.s_[0:q*self.n_nl]
+        self._active = np.r_[0:q*self.n_nl]
 
     def fnl(self, x,y,u):
-        w = self.w
-        x = np.atleast_1d(y)
+        y = np.atleast_2d(y)
         # displacement of dofs attached to nl
-        xnl = np.atleast_2d(np.inner(w, x))  # (n_nx, ns)
-        f = np.prod(xnl.T**self.exponent, axis=1)
-        return f
+        ynl = y @ self.w.T  # [nt, yactive]
+        fnl = np.prod(ynl**self.exponent, axis=1)
+        return fnl
 
     def dfdx(self,x,y,u):
         """Output nl, thus zero"""
         return np.array([])
 
     def dfdy(self,x,y,u):
-        w = self.w
-        x = np.atleast_1d(y)
-        xnl = np.inner(w, x)
-        # same as np.outer when we do w.T
-        dfdx = self.exponent[:,None] * xnl**(self.exponent-1) * w.T # (n, ns)
-        return dfdx
+        """
+        dfdy (1, p, ns)
+        """
+        exp = self.exponent
+        y = np.atleast_2d(y)
+        ynl = y @ self.w.T
 
-#class Polynomial(Nonlinear_Element):
-#    """Polynomial output nonlinearity
-#    
-#    Example
-#    -------
-#    fnl = (y₁-y₂)ẏ₁, where y = [y₁, y₂, ẏ₁, ẏ₂]
-#    exponents = [1,1]
-#    w = np.array([[1,-1,0,0], [0,1,0,0]]
-#    """
-#
-#    def __init__(self, exponent, w, structure='Full',**kwargs):
-#        """
-#        exponents: ndarray (n_ny)
-#        w: ndarray (n_ny, p)
-#        """
-#        self.w = np.atleast_2d(w)
-#        self.exponent = np.atleast_1d(exponent)
-#        self.structure = structure
-#        super().__init__(**kwargs)
-#        # number of nonlinear elements
-#        self.n_nx = 0
-#        self.n_ny = 1
-#        
-#    def set_active(self,n,m,p,q):
-#        # all are active
-#        self._active = np.r_[0:q*self.n_nl]
-#
-#    def fnl(self, x,y,u):
-#        y = np.atleast_2d(y)
-#        # displacement of dofs attached to nl
-#        ynl = y @ self.w.T  # [nt, yactive]
-#        fnl = np.prod(ynl**self.exponent, axis=1)
-#        return fnl
-#
-#    def dfdx(self,x,y,u):
-#        """Output nl, thus zero"""
-#        return np.array([])
-#
-#    def dfdy(self,x,y,u):
-#        """
-#        dfdy (1, p, ns)
-#        """
-#        exp = self.exponent
-#        y = np.atleast_2d(y)
-#        ynl = y @ self.w.T
-#
-#        Ptmp = np.eye(self.w.shape[0])
-#        dfdyP = np.zeros((1, len(exp), y.shape[0]))  # [self.n_ny, yactive,nt]
-#        # derivative wrt. each coloumn in ynl(or row in w). Denoted yactive
-#        for ip in range(self.w.shape[0]):
-#            dfdyP[0,ip,:] = exp[ip]*np.prod(ynl**(exp-Ptmp[ip]), axis=1)
-#
-#        # derivative wrt all y.
-#        dfdy = np.einsum('ijk,jl->ilk',dfdyP, self.w)
-#        
-#        return dfdy
+        Ptmp = np.eye(self.w.shape[0])
+        dfdyP = np.zeros((1, len(exp), y.shape[0]))  # [self.n_ny, yactive,nt]
+        # derivative wrt. each coloumn in ynl(or row in w). Denoted yactive
+        for ip in range(self.w.shape[0]):
+            dfdyP[0,ip,:] = exp[ip]*np.prod(ynl**(exp-Ptmp[ip]), axis=1)
+
+        # derivative wrt all y.
+        dfdy = np.einsum('ijk,jl->ilk',dfdyP, self.w)
+        return dfdy
 
 
 class NLS(object):

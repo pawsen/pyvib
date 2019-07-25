@@ -73,12 +73,15 @@ Eextra = np.array([[-3.165156145e-02, -5.12315312e-02],
 if p == 1:
     Wy = [1]
 elif p ==2:
-    Wy = [1,0]
+    Wy = np.array([[1,0],[0,1]])
+    exp1 = [2,1]
+    exp2 = [2,2]
+    exp3 = [3,1]
 
 
-poly1y = Polynomial(exponent=2,w=Wy)
-poly2y = Polynomial(exponent=3,w=Wy)
-poly3y = Polynomial(exponent=4,w=Wy)
+poly1y = Polynomial(exponent=exp1,w=Wy)
+poly2y = Polynomial(exponent=exp2,w=Wy)
+poly3y = Polynomial(exponent=exp3,w=Wy)
 
 poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
@@ -87,15 +90,11 @@ poly3x = Polynomial_x(exponent=4,w=[0,1])
 F = np.array([])
 nly = None
 
-nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
-nlx = NLS([poly2y])
-nlx = NLS([poly2x])
+nlx = NLS([poly2y, poly1y])
+#nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
+#nlx = NLS([poly2y])
+#nlx = NLS([poly2x])
 E = Efull[:,:len(nlx.nls)]
-
-E = Efull
-nlx = NLS([Pnlss(degree=[2,3], structure='full')])
-F = Ffull
-nly = NLS([Pnlss(degree=[2,3], structure='full')])
 
 true_model = NLSS(A, B, C, D, E, F)
 true_model.add_nl(nlx=nlx, nly=nly)
@@ -192,27 +191,20 @@ linmodel = deepcopy(linmodel_orig)
 Rest = yest.shape[2]
 T1 = np.r_[npp*Ntr, np.r_[0:(Rest-1)*npp+1:npp]]
 
-poly1y = Polynomial(exponent=2,w=Wy)
-poly2y = Polynomial(exponent=3,w=Wy)
-poly3y = Polynomial(exponent=4,w=Wy)
+poly1y = Polynomial(exponent=exp1,w=Wy)
+poly2y = Polynomial(exponent=exp2,w=Wy)
+poly3y = Polynomial(exponent=exp3,w=Wy)
 
 poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
 poly3x = Polynomial_x(exponent=4,w=[0,1])
 
-nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
-nlx2 = NLS([poly2x])
-
+nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])
 nly2 = None
 
 
-nlx2 = NLS([Pnlss(degree=[2,3], structure='full')])
-nly2 = NLS([Pnlss(degree=[2,3], structure='full')])
-
 model = NLSS(linmodel)
 model.add_nl(nlx=nlx2, nly=nly2)
-#model.nlterms('x', [2,3], 'full')
-#model.nlterms('y', [2,3], 'full')
 model.set_signal(sig)
 model.transient(T1)
 model.optimize(lamb=100, weight=weight, nmax=25)
@@ -261,7 +253,7 @@ for pp in range(p):
     plt.xlabel('Time index')
     plt.ylabel('Output (errors)')
     plt.legend(('Output',) + descrip)
-    plt.title('Estimation results p:{pp}')
+    plt.title(f'Estimation results p:{pp}')
     figs['estimation_error'] = (plt.gcf(), plt.gca())
 
     # result on validation data
@@ -276,7 +268,7 @@ for pp in range(p):
     plt.xlabel('Frequency')
     plt.ylabel('Output (errors) (dB)')
     plt.legend(('Output',) + descrip + ('Noise',))
-    plt.title('Validation results p:{pp}')
+    plt.title(f'Validation results p:{pp}')
     figs['val_data'] = (plt.gcf(), plt.gca())
 
     # result on test data
@@ -291,7 +283,7 @@ for pp in range(p):
     plt.xlabel('Frequency')
     plt.ylabel('Output (errors) (dB)')
     plt.legend(('Output',) + descrip + ('Noise',))
-    plt.title('Test results p:{pp}')
+    plt.title(f'Test results p:{pp}')
     figs['test_data'] = (plt.gcf(), plt.gca())
 
 # optimization path for PNLSS
@@ -344,9 +336,29 @@ nlx = NLS([poly2y, poly1y])  #, poly3])
 nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])  #,poly3])
 nly2 = None
 
-E = Efull
-nlx = NLS([Pnlss(degree=[2,3], structure='full')])
-F = Ffull
-nly = NLS([Pnlss(degree=[2,3], structure='full')])
+====
+p = 2
 
+if p == 2:
+    C = np.vstack((C,C))
+    D = np.vstack((D,0.1563532))
+
+E = Efull
+F = Ffull
+nlx = NLS([Pnlss(degree=[2,3], structure='full')])
+nly = NLS([Pnlss(degree=[2,3], structure='full')])
+----
+
+elif p ==2:
+    Wy = np.array([[1,0],[0,1]])
+    exp1 = [2,1]
+    exp2 = [2,2]
+    exp3 = [3,1]
+
+
+nly = None
+nlx = NLS([poly2y, poly1y])
+E = Efull[:,:len(nlx.nls)]
+
+nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])
 """
