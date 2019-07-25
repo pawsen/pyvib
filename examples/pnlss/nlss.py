@@ -72,11 +72,13 @@ Eextra = np.array([[-3.165156145e-02, -5.12315312e-02],
     
 if p == 1:
     Wy = [1]
+    Wt = [1]
 elif p ==2:
     Wy = np.array([[1,0],[0,1]])
     exp1 = [2,1]
     exp2 = [2,2]
     exp3 = [3,1]
+    Wt = [0,1]
 
 
 poly1y = Polynomial(exponent=exp1,w=Wy)
@@ -87,14 +89,13 @@ poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
 poly3x = Polynomial_x(exponent=4,w=[0,1])
 
+tahn1 = Tanhdryfriction(eps=0.1, w=Wt)
+
 F = np.array([])
 nly = None
 
-nlx = NLS([poly2y, poly1y])
-#nlx = NLS([poly2y, poly1y])  #, poly3])  # nls in state eq
-#nlx = NLS([poly2y])
-#nlx = NLS([poly2x])
-E = Efull[:,:len(nlx.nls)]
+nlx = NLS([tahn1])
+E = 1e0*Efull[:,:len(nlx.nls)]
 
 true_model = NLSS(A, B, C, D, E, F)
 true_model.add_nl(nlx=nlx, nly=nly)
@@ -110,7 +111,7 @@ kind = 'Odd'  # 'Full','Odd','SpecialOdd', or 'RandomOdd': kind of multisine
 m = D.shape[1]         # number of inputs
 p = C.shape[0]         # number of outputs
 fs = 1        # normalized sampling rate
-Ntr = 1
+Ntr = 5
 if True:
     # get predictable random numbers. https://dilbert.com/strip/2001-10-25
     np.random.seed(10)
@@ -125,6 +126,8 @@ if True:
     print(norm(yorig))
     u = u.reshape((R,P,npp)).transpose((2,0,1))[:,None]  # (npp,m,R,P)
     y = yorig.reshape((R,P,npp,p),order='C').transpose((2,3,0,1))
+
+    #y = yorig.reshape((R,P,npp)).transpose((2,0,1))[:,None]
     # or in F order:
     # y2 = yorig.reshape((npp,P,R,p),order='F').transpose((0,3,2,1))
     
@@ -155,7 +158,7 @@ if True:
     sig = Signal(uest,yest,fs=fs)
     sig.lines = lines
     # plot periodicity for one realization to verify data is steady state
-    # sig.periodicity()
+    sig.periodicity()
     # Calculate BLA, total- and noise distortion. Used for subspace identification
     sig.bla()
     # average signal over periods. Used for training of PNLSS model
@@ -168,6 +171,7 @@ maxr = 5
 
 if 'linmodel' not in locals() or True:
     linmodel = Subspace(sig)
+    linmodel._cost_normalize = 1
     linmodel.estimate(2, 5, weight=weight)  # best model, when noise weighting is used
     linmodel.optimize(weight=weight)
     
@@ -199,11 +203,12 @@ poly1x = Polynomial_x(exponent=2,w=[0,1])
 poly2x = Polynomial_x(exponent=3,w=[0,1])
 poly3x = Polynomial_x(exponent=4,w=[0,1])
 
-nlx2 = NLS([poly1y,poly3y,poly2x,poly2y])
+nlx2 = NLS([tahn1])
 nly2 = None
 
 
 model = NLSS(linmodel)
+model._cost_normalize = 1
 model.add_nl(nlx=nlx2, nly=nly2)
 model.set_signal(sig)
 model.transient(T1)
@@ -285,6 +290,31 @@ for pp in range(p):
     plt.legend(('Output',) + descrip + ('Noise',))
     plt.title(f'Test results p:{pp}')
     figs['test_data'] = (plt.gcf(), plt.gca())
+    
+    # BLA plot. We can estimate nonlinear distortion
+    # total and noise distortion averaged over P periods and M realizations
+    # total distortion level includes nonlinear and noise distortion
+    plt.figure()
+    # When comparing distortion(variance, proportional to power) with 
+    # G(propertional to amplitude(field)), there is two definations for dB:
+    # dB for power: Lp = 10 log10(P). 
+    # dB for field quantity: Lf = 10 log10(F²)
+    # Alternative calc: bla_noise = db(np.abs(sig.covGn[:,pp,pp])*R, 'power')
+    # if the signal is noise-free, fix noise so we see it in plot
+    bla_noise = db(np.sqrt(np.abs(sig.covGn[:,pp,pp])*R))
+    bla_noise[bla_noise < -150] = -150
+    bla_tot = db(np.sqrt(np.abs(sig.covG[:,pp,pp])*R))
+    bla_tot[bla_tot < -150] = -150
+
+    plt.plot(freq[lines], db(np.abs(sig.G[:,pp,0])))
+    plt.plot(freq[lines], bla_noise,'s')
+    plt.plot(freq[lines], bla_tot,'*')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('magnitude (dB)')
+    plt.title(f'Estimated BLA p: {pp}')
+    plt.legend(('BLA FRF','Noise Distortion','Total Distortion'))
+    plt.gca().set_ylim(bottom=-150) 
+    figs['bla'] = (plt.gcf(), plt.gca())
 
 # optimization path for PNLSS
 plt.figure()
@@ -315,17 +345,16 @@ Workable parameters
 -------------------
 RMSu = 0.05
 Ntr = 5
-E = np.array([[3.165156145e-03],
-             [2.156132115e-03]])
 nlx = NLS([Tanhdryfriction(eps=0.1, w=[1])])
+E = 1e-1*Efull[:,:len(nlx.nls)]
 
 ----
 RMSu = 0.05
 Ntr = 5
-E = np.array([[3.165156145e-03],
-             [2.156132115e-03]])
+
 gap = 0.25
 nlx = NLS([Unilatteralspring(gap=gap, w=[1])])
+E = 1e-1*Efull[:,:len(nlx.nls)]
 ----
 
 RMSu = 0.05

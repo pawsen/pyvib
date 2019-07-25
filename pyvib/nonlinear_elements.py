@@ -59,9 +59,9 @@ class Unilatteralspring(Nonlinear_Element):
         w = self.w
         y = np.atleast_2d(y)
         ynl = np.inner(w, y)
-        dfdy = np.einsum('i,j,k->ikj',w, 
+        dfdy = np.einsum('j,k->ikj',
                         (ynl - self.gap >= 0).astype(float), w)
-        return dfdy    
+        return dfdy[None]
 
 class Tanhdryfriction(Nonlinear_Element):
     """Friction model. sign(ẏ) approximated by tanh. eps control the slope.
@@ -91,9 +91,9 @@ class Tanhdryfriction(Nonlinear_Element):
         w = self.w
         y = np.atleast_2d(y)
         ynl = np.inner(w, y)
-        dfdy = np.einsum('i,j,k->ikj',w, 
+        dfdy = np.einsum('j,k->kj',
                          (1 - np.tanh(ynl / self.eps)**2) / self.eps, w)
-        return dfdy
+        return dfdy[None]
 
 class Pnlss(Nonlinear_Element):
     """Combinations of monomials in x and u"""
