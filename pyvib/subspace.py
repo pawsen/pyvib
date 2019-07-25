@@ -25,6 +25,8 @@ class Subspace(StateSpace, StateSpaceIdent):
         self.signal = signal
         kwargs['dt'] = 1/signal.fs
         super().__init__(*system, **kwargs)
+        
+        self._cost_normalize = len(signal.lines)
 
     @property
     def weight(self):
@@ -150,105 +152,6 @@ class Subspace(StateSpace, StateSpaceIdent):
 
         return err_vec
 
-
-def jacobian_freq(A,B,C,z):
-    """Compute Jacobians of the unweighted errors wrt. model parameters.
-
-    Computes the Jacobians of the unweighted errors ``e(f) = Ĝ(f) - G(f)``
-    w.r.t. the elements in the ``A``, ``B``, and ``C`` state-space matrices.
-    The Jacobian w.r.t. the elements of ``D`` is a zero matrix where one
-    element is one. ``Ĝ(f) = C*(z(f)*I - A)^(-1)*B + D`` is the estimated and
-    ``G(f)`` is the measured frequency response matrix (FRM).
-
-    The structure of the Jacobian is: ``JX[f,p,m,i]`` where ``p`` and ``m`` are
-    inputs and outputs and ``f`` the frequency line. ``i`` is the index
-    mapping, relating the matrix element ``(k,l)`` of ``X`` to the linear index
-    of the vector ``JX[p,m,:,f]``. This mapping is given by, fx for ``A``:
-    ``i = np.ravel_multi_index((k,l) ,(n,n))`` and the reverse is
-    ``k, l = np.unravel_index(i, (n,n))``. Thus ``JA(f,:,:,i)`` contains the
-    partial derivative of the unweighted error ``e(f)`` at frequency `f` wrt.
-    ``A(k,l)``
-
-    Parameters
-    ----------
-    A : ndarray(n,n)
-        state matrix
-    B : ndarray(n,m)
-        input matrix
-    C : ndarray(p,n)
-        output matrix
-    z : ndarray(F)
-        ``z = exp(2j*pi*freq)``, where freq is a vector of normalized
-        frequencies at which the Jacobians are computed (0 < freq < 0.5)
-
-    Returns
-    -------
-    JA : ndarray(F,p,m,n*n)
-        JA(f,:,:,i) contains the partial derivative of the unweighted error
-        e(f) at frequency f wrt. A(k,l)
-    JB : ndarray(p,m,n*m,F)
-        JB(f,:,:,i) contains the partial derivative of e(f) w.r.t. B(k,l)
-    JC : ndarray(p,m,p*n,F)
-        JC(f,:,:,i) contains the partial derivative of e(f) w.r.t. C(k,l)
-
-    Notes
-    -----
-    See eq. (5-103) in :cite:pauldart2008
-
-    """
-
-    F = len(z)          # Number of frequencies
-    n = np.shape(A)[0]  # Number of states
-    m = np.shape(B)[1]  # Number of inputs
-    p = np.shape(C)[0]  # Number of outputs
-
-    JA = np.empty((F,p,m,n*n),dtype=complex)
-    JB = np.empty((F,p,m,n*m),dtype=complex)
-    JC = np.empty((F,p,m,n*p),dtype=complex)
-
-    # get rows and columns in A for a given index: A(i)=A(k(i),ell(i))
-    k, ell = np.unravel_index(np.arange(n**2), (n,n))
-    # Note that using inv(A) implicitly calls solve and creates an identity
-    # matrix. Thus it is faster to allocate In once and then call solve.
-    In = np.eye(n)
-    Im = np.eye(m)
-    Ip = np.eye(p)
-    # TODO must vectorize...
-    # see for calling lapack routines directly
-    # https://stackoverflow.com/a/11999063/1121523
-    # see for multicasting
-    # https://docs.scipy.org/doc/numpy/reference/routines.linalg.html#linear-algebra-on-several-matrices-at-once
-    for f in range(F):
-        temp1 = solve((z[f]*In - A),In)
-        temp2 = C @ temp1
-        temp3 = temp1 @ B
-
-        # Jacobian w.r.t. all elements in A, A(i)=A(k(i),ell(i))
-        # Note that the partial derivative of e(f) w.r.t. A(k(i),ell(i)) is
-        # equal to temp2*fOne(n,n,i)*temp3, and thus
-        # JA(:,:,i,f) = temp2(:,k(i))*temp3(ell(i),:)
-        for i in range(n**2): # Loop over all elements in A
-            JA[f,:,:,i] = np.outer(temp2[:,k[i]], temp3[ell[i],:])
-
-        # Jacobian w.r.t. all elements in B
-        # Note that the partial derivative of e(f) w.r.t. B(k,l) is equal to
-        # temp2*fOne(n,m,sub2ind([n m],k,l)), and thus
-        # JB(:,l,sub2ind([n m],k,l),f) = temp2(:,k)
-        JB[f] = np.reshape(kron(Im, temp2), (p,m,m*n))
-
-        # Jacobian w.r.t. all elements in C
-        # Note that the partial derivative of e(f) w.r.t. C(k,l) is equal to
-        # fOne(p,n,sub2ind([p n],k,l))*temp3, and thus
-        # JC(k,:,sub2ind([p n],k,l),f) = temp3(l,:)
-        JC[f] = np.reshape(kron(temp3.T, Ip), (p,m,n*p))
-
-    # JD does not change over iterations
-    JD = np.zeros((p,m,p*m))
-    for f in range(p*m):
-        np.put(JD[...,f], f, 1)
-    JD = np.tile(JD, (F,1,1,1))
-
-    return JA, JB, JC, JD
 
 def modal_list(G, covG, freq, nvec, r, fs, U=None, Y=None):
     """Calculate modal properties for list of system size ``n``
@@ -614,6 +517,8 @@ def frf_jacobian(x0,A,C,n,m,p,freq,U=None,weight=False):
     Ĝ(f) = C*inv(z(f)*I - A)*B + D and W = 1/σ_G.
     Ŷ(f) = U(f) * Ĝ(f)
 
+    NOTE: THIS IS FOR BD ESTIMATION, not optimization of all state space mats
+    See jacobian for that.
     """
 
     z = np.exp(2j*np.pi*freq)
@@ -685,17 +590,117 @@ def jacobian(x0, system, weight=False):
     tmp[...,n**2 +       np.r_[:n*m]] = JB
     tmp[...,n**2 + n*m + np.r_[:n*p]] = JC
     tmp[...,n**2 + n*m + n*p:] = JD
-    tmp.shape = (F,m*p,npar)
+    # tmp.shape = (F,m*p,npar) # this might work for p>1, might not
+    tmp = tmp.reshape(F,p*m,npar,order='F')
 
     if weight is not False:
         tmp = mmul_weight(tmp, weight)
-    tmp.shape = (F*p*m,npar)
-
+    # tmp.shape = (F*p*m,npar) # this might work for p>1, might not
+    tmp =tmp.swapaxes(0,1).reshape(p*m*F,npar,order='F')
     jac = np.empty((2*F*p*m, npar))
     jac[:F*p*m] = tmp.real
     jac[F*p*m:] = tmp.imag
 
     return jac
+
+def jacobian_freq(A,B,C,z):
+    """Compute Jacobians of the unweighted errors wrt. model parameters.
+
+    Computes the Jacobians of the unweighted errors ``e(f) = Ĝ(f) - G(f)``
+    w.r.t. the elements in the ``A``, ``B``, and ``C`` state-space matrices.
+    The Jacobian w.r.t. the elements of ``D`` is a zero matrix where one
+    element is one. ``Ĝ(f) = C*(z(f)*I - A)^(-1)*B + D`` is the estimated and
+    ``G(f)`` is the measured frequency response matrix (FRM).
+
+    The structure of the Jacobian is: ``JX[f,p,m,i]`` where ``p`` and ``m`` are
+    inputs and outputs and ``f`` the frequency line. ``i`` is the index
+    mapping, relating the matrix element ``(k,l)`` of ``X`` to the linear index
+    of the vector ``JX[p,m,:,f]``. This mapping is given by, fx for ``A``:
+    ``i = np.ravel_multi_index((k,l) ,(n,n))`` and the reverse is
+    ``k, l = np.unravel_index(i, (n,n))``. Thus ``JA(f,:,:,i)`` contains the
+    partial derivative of the unweighted error ``e(f)`` at frequency `f` wrt.
+    ``A(k,l)``
+
+    Parameters
+    ----------
+    A : ndarray(n,n)
+        state matrix
+    B : ndarray(n,m)
+        input matrix
+    C : ndarray(p,n)
+        output matrix
+    z : ndarray(F)
+        ``z = exp(2j*pi*freq)``, where freq is a vector of normalized
+        frequencies at which the Jacobians are computed (0 < freq < 0.5)
+
+    Returns
+    -------
+    JA : ndarray(F,p,m,n*n)
+        JA(f,:,:,i) contains the partial derivative of the unweighted error
+        e(f) at frequency f wrt. A(k,l)
+    JB : ndarray(p,m,n*m,F)
+        JB(f,:,:,i) contains the partial derivative of e(f) w.r.t. B(k,l)
+    JC : ndarray(p,m,p*n,F)
+        JC(f,:,:,i) contains the partial derivative of e(f) w.r.t. C(k,l)
+
+    Notes
+    -----
+    See eq. (5-103) in :cite:pauldart2008
+
+    """
+
+    F = len(z)          # Number of frequencies
+    n = np.shape(A)[0]  # Number of states
+    m = np.shape(B)[1]  # Number of inputs
+    p = np.shape(C)[0]  # Number of outputs
+
+    JA = np.empty((F,p,m,n*n),dtype=complex)
+    JB = np.empty((F,p,m,n*m),dtype=complex)
+    JC = np.empty((F,p,m,n*p),dtype=complex)
+
+    # get rows and columns in A for a given index: A(i)=A(k(i),ell(i))
+    k, ell = np.unravel_index(np.arange(n**2), (n,n))
+    # Note that using inv(A) implicitly calls solve and creates an identity
+    # matrix. Thus it is faster to allocate In once and then call solve.
+    In = np.eye(n)
+    Im = np.eye(m)
+    Ip = np.eye(p)
+    # TODO must vectorize...
+    # see for calling lapack routines directly
+    # https://stackoverflow.com/a/11999063/1121523
+    # see for multicasting
+    # https://docs.scipy.org/doc/numpy/reference/routines.linalg.html#linear-algebra-on-several-matrices-at-once
+    for f in range(F):
+        temp1 = solve((z[f]*In - A),In)
+        temp2 = C @ temp1
+        temp3 = temp1 @ B
+
+        # Jacobian w.r.t. all elements in A, A(i)=A(k(i),ell(i))
+        # Note that the partial derivative of e(f) w.r.t. A(k(i),ell(i)) is
+        # equal to temp2*fOne(n,n,i)*temp3, and thus
+        # JA(:,:,i,f) = temp2(:,k(i))*temp3(ell(i),:)
+        for i in range(n**2): # Loop over all elements in A
+            JA[f,:,:,i] = np.outer(temp2[:,k[i]], temp3[ell[i],:])
+
+        # Jacobian w.r.t. all elements in B
+        # Note that the partial derivative of e(f) w.r.t. B(k,l) is equal to
+        # temp2*fOne(n,m,sub2ind([n m],k,l)), and thus
+        # JB(:,l,sub2ind([n m],k,l),f) = temp2(:,k)
+        JB[f] = np.reshape(kron(Im, temp2), (p,m,m*n), order='F')
+
+        # Jacobian w.r.t. all elements in C
+        # Note that the partial derivative of e(f) w.r.t. C(k,l) is equal to
+        # fOne(p,n,sub2ind([p n],k,l))*temp3, and thus
+        # JC(k,:,sub2ind([p n],k,l),f) = temp3(l,:)
+        JC[f] = np.reshape(kron(temp3, Ip), (p,m,n*p), order='F')
+
+    # JD does not change over iterations
+    JD = np.zeros((p,m,p*m))
+    for f in range(p*m):
+        np.put(JD[...,f], f, 1)
+    JD = np.tile(JD, (F,1,1,1))
+
+    return JA, JB, JC, JD
 
 def costfcn(x0, system, weight=False):
     """Compute the error vector of the FRF, such that the function to mimimize is
