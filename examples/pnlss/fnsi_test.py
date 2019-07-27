@@ -13,10 +13,11 @@ from pyvib.common import db
 from pyvib.forcing import multisine
 from pyvib.frf import covariance
 from pyvib.nlss import NLSS
-from pyvib.nonlinear_elements import (NLS, Pnlss, Polynomial, Polynomial_x,
+from pyvib.nonlinear_elements import (NLS, Nonlinear_Element,
                                       Tanhdryfriction, Unilatteralspring)
 from pyvib.signal import Signal
 from pyvib.subspace import Subspace
+from pyvib.fnsi import FNSI
 
 """This tutorial shows the work flow of modeling a single input single output
 (SISO) polynomial nonlinear state-space (PNLSS) model.
@@ -50,68 +51,40 @@ if p == 2:
     C = np.vstack((C,C))
     D = np.vstack((D,0.1563532))
 
-Ffull = np.array([[-0.00867042, -0.00636662, 0.00197873, -0.00090865, -0.00088879,
-               -0.02759694, -0.01817546, -0.10299409, 0.00648549, 0.08990175,
-               0.21129849, 0.00030216, 0.03299013, 0.02058325, -0.09202439,
-               -0.0380775]])
-Efull = np.array([[1.88130305e-01, -2.70291900e-01, 9.12423046e-03,
-               -5.78088500e-01, 9.54588221e-03, 5.08576019e-04,
-               -1.33890850e+00, -2.02171960e+00,-4.05918956e-01,
-               -1.37744223e+00, 1.21206232e-01,-9.26349423e-02,
-               -5.38072197e-01, 2.34134460e-03, 4.94334690e-02,
-               -1.88329572e-02],
-              [-5.35196110e-01, -3.66250013e-01, 2.34622651e-02,
-               1.43228677e-01, -1.35959331e-02, 1.32052696e-02,
-               7.98717915e-01, 1.35344901e+00, -5.29440815e-02,
-               4.88513652e-01, 7.81285093e-01, -3.41019453e-01,
-               2.27692972e-01, 7.70150211e-02, -1.25046731e-02,
-               -1.62456154e-02]])
-Eextra = np.array([[-3.165156145e-02, -5.12315312e-02],
-                   [2.156132115e-02,  1.46517548e-02]])
+Ffull = np.array([[-0.00867042, -0.00636662]])
+Efull = np.array([[1.88130305e-01, -2.70291900e-01],
+                  [-5.35196110e-01,-3.66250013e-01]])
 
-    
+
 if p == 1:
     Wy = [1]
     Wt = [1]
 elif p ==2:
-    Wy = np.array([[1,0],[0,1]])
-    exp1 = [2,1]
-    exp2 = [2,2]
-    exp3 = [3,1]
     Wt = [0,1]
 
-
-poly1y = Polynomial(exponent=exp1,w=Wy)
-poly2y = Polynomial(exponent=exp2,w=Wy)
-poly3y = Polynomial(exponent=exp3,w=Wy)
-
-poly1x = Polynomial_x(exponent=2,w=[0,1])
-poly2x = Polynomial_x(exponent=3,w=[0,1])
-poly3x = Polynomial_x(exponent=4,w=[0,1])
-
-tahn1 = Tanhdryfriction(eps=0.1, w=Wt)
 
 F = np.array([])
 nly = None
 
-nlx = NLS([tahn1])
-E = 1e0*Efull[:,:len(nlx.nls)]
+# for identification
+tahn1 = Tanhdryfriction(eps=0.1, w=Wt)
+nlx = [tahn1]
+E = 1e0*Efull[:,:len(nlx)]
 
-true_model = NLSS(A, B, C, D, E, F)
+true_model = FNSI(A, B, C, D, E, F)
 true_model.add_nl(nlx=nlx, nly=nly)
-
 
 # excitation signal
 RMSu = 0.05   # Root mean square value for the input signal
-npp = 1024    # Number of samples
-R = 4         # Number of phase realizations (one for validation and one for
+npp = 2048    # Number of samples
+R = 3         # Number of phase realizations (one for validation and one for
               # testing)
 P = 3         # Number of periods
 kind = 'Odd'  # 'Full','Odd','SpecialOdd', or 'RandomOdd': kind of multisine
 m = D.shape[1]         # number of inputs
 p = C.shape[0]         # number of outputs
 fs = 1        # normalized sampling rate
-Ntr = 5
+Ntr = 2
 if True:
     # get predictable random numbers. https://dilbert.com/strip/2001-10-25
     np.random.seed(10)
@@ -147,8 +120,8 @@ if True:
     uval = u[:,:,-2,-1]
     yval = y[:,:,-2,-1]
     # all other realizations are used for estimation
-    uest = u[...,:-2,:]
-    yest = y[...,:-2,:]
+    uest = u[...,0,:][:,:,None]
+    yest = y[...,0,:][:,:,None]
     # noise estimate over periods. This sets the performace limit for the estimated
     # model
     covY = covariance(yest)
@@ -158,7 +131,7 @@ if True:
     sig = Signal(uest,yest,fs=fs)
     sig.lines = lines
     # plot periodicity for one realization to verify data is steady state
-    sig.periodicity()
+    #sig.periodicity()
     # Calculate BLA, total- and noise distortion. Used for subspace identification
     sig.bla()
     # average signal over periods. Used for training of PNLSS model
@@ -170,13 +143,26 @@ maxr = 5
 
 
 if 'linmodel' not in locals() or True:
-    linmodel = Subspace(sig)
-    linmodel._cost_normalize = 1
-    linmodel.estimate(2, 5, weight=weight)  # best model, when noise weighting is used
+    Rest = yest.shape[2]
+    T1 = np.r_[npp*Ntr, np.r_[0:(Rest-1)*npp+1:npp]]
+    
+    linmodel = FNSI()
+    linmodel.set_signal(sig)
+    linmodel.estimate(n=2, r=5, weight=weight)
+
+    linmodel.transient(T1)
+    # linmodel._cost_normalize = 1
     linmodel.optimize(weight=weight)
     
+    fnsi1 = FNSI()
+    fnsi1.set_signal(sig)
+    fnsi1.add_nl(nlx=nlx)
+    fnsi1.estimate(n=2, r=5, weight=weight)
+    fnsi1.transient(T1)
+    #fnsi1.optimize(lamb=100, weight=weight, nmax=25)
+    
     print(f"Best subspace model, n, r: {linmodel.n}, {linmodel.r}")
-    linmodel_orig = linmodel
+    # linmodel_orig = linmodel
 
 if False:  # dont scan subspace
     linmodel = Subspace(sig)
@@ -188,20 +174,13 @@ if False:  # dont scan subspace
     linmodel.optimize(weight=weight)
     print(f"Best subspace model, n, r: {linmodel.n}, {linmodel.r}")
     
-linmodel = deepcopy(linmodel_orig)
+# linmodel = deepcopy(linmodel_orig)
 # estimate PNLSS
 # transient: Add one period before the start of each realization. Note that
 # this is for the signal averaged over periods
 Rest = yest.shape[2]
 T1 = np.r_[npp*Ntr, np.r_[0:(Rest-1)*npp+1:npp]]
 
-poly1y = Polynomial(exponent=exp1,w=Wy)
-poly2y = Polynomial(exponent=exp2,w=Wy)
-poly3y = Polynomial(exponent=exp3,w=Wy)
-
-poly1x = Polynomial_x(exponent=2,w=[0,1])
-poly2x = Polynomial_x(exponent=3,w=[0,1])
-poly3x = Polynomial_x(exponent=4,w=[0,1])
 
 nlx2 = NLS([tahn1])
 nly2 = None
@@ -220,7 +199,7 @@ model.optimize(lamb=100, weight=weight, nmax=25)
 # only one realization
 nl_errvec = model.extract_model(yval, uval, T1=npp*Ntr)
 
-models = [linmodel, model]
+models = [linmodel, model, fnsi1]
 descrip = [type(mod).__name__ for mod in models]
 descrip = tuple(descrip)  # convert to tuple for legend concatenation in figs
 # simulation error
@@ -241,7 +220,7 @@ val_err = stack(yval, val)
 test_err = stack(ytest, test)
 noise = np.abs(np.sqrt(Pest*covY.squeeze()))
 print(f"err for models {descrip}")
-print(f'rms error noise:\n{rms(noise)}     \ndb: \n{db(rms(noise))} ')
+print(f'rms error noise: {rms(noise)}\tdb: {db(rms(noise))} ')
 print(f'rms error est:  \n{rms(est_err)}   \ndb: \n{db(rms(est_err))}')
 print(f'rms error val:  \n{rms(val_err)}   \ndb: \n{db(rms(val_err))}')
 print(f'rms error test: \n{rms(test_err)}  \ndb: \n{db(rms(test_err))}')
@@ -291,30 +270,33 @@ for pp in range(p):
     plt.title(f'Test results p:{pp}')
     figs['test_data'] = (plt.gcf(), plt.gca())
     
-    # BLA plot. We can estimate nonlinear distortion
-    # total and noise distortion averaged over P periods and M realizations
-    # total distortion level includes nonlinear and noise distortion
-    plt.figure()
-    # When comparing distortion(variance, proportional to power) with 
-    # G(propertional to amplitude(field)), there is two definations for dB:
-    # dB for power: Lp = 10 log10(P). 
-    # dB for field quantity: Lf = 10 log10(F²)
-    # Alternative calc: bla_noise = db(np.abs(sig.covGn[:,pp,pp])*R, 'power')
-    # if the signal is noise-free, fix noise so we see it in plot
-    bla_noise = db(np.sqrt(np.abs(sig.covGn[:,pp,pp])*R))
-    bla_noise[bla_noise < -150] = -150
-    bla_tot = db(np.sqrt(np.abs(sig.covG[:,pp,pp])*R))
-    bla_tot[bla_tot < -150] = -150
-
-    plt.plot(freq[lines], db(np.abs(sig.G[:,pp,0])))
-    plt.plot(freq[lines], bla_noise,'s')
-    plt.plot(freq[lines], bla_tot,'*')
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('magnitude (dB)')
-    plt.title(f'Estimated BLA p: {pp}')
-    plt.legend(('BLA FRF','Noise Distortion','Total Distortion'))
-    plt.gca().set_ylim(bottom=-150) 
-    figs['bla'] = (plt.gcf(), plt.gca())
+    try:
+        # BLA plot. We can estimate nonlinear distortion
+        # total and noise distortion averaged over P periods and M realizations
+        # total distortion level includes nonlinear and noise distortion
+        plt.figure()
+        # When comparing distortion(variance, proportional to power) with 
+        # G(propertional to amplitude(field)), there is two definations for dB:
+        # dB for power: Lp = 10 log10(P). 
+        # dB for field quantity: Lf = 10 log10(F²)
+        # Alternative calc: bla_noise = db(np.abs(sig.covGn[:,pp,pp])*R, 'power')
+        # if the signal is noise-free, fix noise so we see it in plot
+        bla_noise = db(np.sqrt(np.abs(sig.covGn[:,pp,pp])*R))
+        bla_noise[bla_noise < -150] = -150
+        bla_tot = db(np.sqrt(np.abs(sig.covG[:,pp,pp])*R))
+        bla_tot[bla_tot < -150] = -150
+    
+        plt.plot(freq[lines], db(np.abs(sig.G[:,pp,0])))
+        plt.plot(freq[lines], bla_noise,'s')
+        plt.plot(freq[lines], bla_tot,'*')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('magnitude (dB)')
+        plt.title(f'Estimated BLA p: {pp}')
+        plt.legend(('BLA FRF','Noise Distortion','Total Distortion'))
+        plt.gca().set_ylim(bottom=-150) 
+        figs['bla'] = (plt.gcf(), plt.gca())
+    except:
+        pass
 
 # optimization path for PNLSS
 plt.figure()

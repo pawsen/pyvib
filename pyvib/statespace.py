@@ -28,7 +28,7 @@ class StateSpace():
         self.outputs = None
         self._dt = None
         self.T1, self.T2 = [None]*2
-        self.n, self.m, self.p = [0]*3
+        self.n, self.m, self.p = [None]*3
 
         sys = system
         dt = kwargs.pop('dt', True)
@@ -163,6 +163,8 @@ class StateSpace():
         """Transient handling. t1: periodic, t2: aperiodic
         Get transient index. Only needed to run once
         """
+        assert self.p is not None, 'SS model not initialized properly'
+
         self.T1 = T1
         self.T2 = T2
         sig = self.signal
@@ -224,9 +226,8 @@ class StateSpace():
         return t, y, x
 
     def to_cont(self, method='zoh', alpha=None):
-        """convert to cont. time. Only A and B changes"""
-        self.Ac, self.Bc, *_ = \
-            discrete2cont(self.A, self.B, self.C, self.D, self.dt,
+        """convert to cont. time. Only A and B changes for zoh method"""
+        return discrete2cont(self.A, self.B, self.C, self.D, self.dt,
                           method=method, alpha=alpha)
 
     @property
@@ -656,6 +657,7 @@ def remove_transient_indices_periodic(T1,N,p):
          output 2 corresponding to input realization 2]
 
     """
+    assert p > 0, 'wrong number of output'
     T1 = np.atleast_1d(np.asarray(T1, dtype=int))
     ntrans = T1[0]
 
@@ -676,8 +678,6 @@ def remove_transient_indices_periodic(T1,N,p):
         indices = np.hstack((indices,
                              np.r_[T1[i]:T1[i+1]] + (i+1)*ntrans))
 
-    # TODO This is not correct for p>1. We still store y.shape -> (N,p)
-    # UPDATE 25/02: maybe correct. Gives correct output, see examples
     if p > 1:
         # Total number of samples per output = number of samples without + with
         # transients
