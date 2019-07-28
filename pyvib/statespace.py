@@ -441,18 +441,18 @@ class StateSpaceIdent():
         nmodels = models.shape[0]
         ss0 = self.flatten()
         err_rms = np.empty(nmodels)
-        if info:
+        if info > 1:
             print(f"{'model':5} | {'rms':12} |")
         for i, ss in enumerate(models):
             self._copy(*self.extract(ss))
             tout, yout, xout = self.simulate(u, t=t, x0=x0, T1=T1, T2=T2)
             err_rms[i] = np.sqrt(np.mean((y - yout)**2))
-            if info:
+            if info > 1:
                 print(f"{i:5d} | {err_rms[i]:12.8g}")
         # best model on new data set
         i = np.nanargmin(err_rms)
         if info:
-            print(f"best model is {i} with RMS {err_rms[i]:12.8g}")
+            print(f"best model on val-data is {i} with RMS {err_rms[i]:12.8g}")
         ss = models[i]
         if copy:
             # restore state space matrices to original
