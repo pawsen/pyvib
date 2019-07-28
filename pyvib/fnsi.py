@@ -8,24 +8,52 @@ from scipy.linalg import norm, solve
 from .helper.modal_plotting import plot_frf, plot_stab
 from .statespace import NonlinearStateSpace, StateSpaceIdent
 from .subspace import modal_list, subspace
-from .nlss import dnlsim, jacobian
+from .nlss import NLSS
 from .lti_conversion import discrete2cont
-from .nonlinear_elements import NLS
 
 
-class FNSI(NonlinearStateSpace, StateSpaceIdent):
+class FNSI(NLSS, NonlinearStateSpace, StateSpaceIdent):
     """Identify nonlinear subspace model in frequency domain
     
+    x(t+1) = A x(t) + B u(t) + E g(y(t),u(t))
+    y(t)   = C x(t) + D u(t)
+
     Nonlinear forces are concatenated with the input, forming the extended 
-    input `e = [u, g(y,ẏ)].T`
-    This method estimates the coefficients of g.
+    input `e = [u, -g(y,ẏ)].T`. Thus the user needs to know the form of `g`;
+    ex. qubic polynomial, tanh(ẏ), etc., and which DOF the nonlinearity is 
+    connected to. The latter is specified with eg. `w=[0,1]` for y = [y,ẏ].
+
+    This method can estimate the coefficients of `g`; either in physical space
+    as a frequency dependent variable, or in discrete form as the the
+    coefficients of `E`.
     
+    The difference between :class:`~nlss.NLSS` and this, is that `NLSS` is a
+    black-box model with nonlinearities in both state- and output equation,
+    where this is a grey-box model with only (user-specified)
+    nonlinearities in the state equation. That requires the nonlinearity to be:
+    - localized (fx. distributed geometric NL cannot be identified with FNSI)
+    - static
+    - 
+    
+    Example
+    -------
+    >>> from pyvib.nonlinear_elemets import Tanhdryfriction
+    >>> nlx = [Tanhdryfriction(eps=0.01, w=[0,1]])
+    >>> fnsi = FNSI()
+    >>> fnsi.set_signal(sig)
+    >>> fnsi.add_nl(nlx=nlx)
+    >>> fnsi.estimate(n=2, r=5, weight=weight)
+    >>> fnsi.transient(T1)
+    >>> fnsi.optimize(lamb=100, weight=weight, nmax=25)
+
     Notes
     -----
-    Method by J.P Noel. Described in article
+    "Grey-box state-space identification of nonlinear mechanical vibrations"
+    https://sci-hub.tw/10.1080/00207179.2017.1308557
+    FNSI method by J.P. Noël
     "Frequency-domain subspace identification for nonlinear mechanical
     systems"
-    http://dx.doi.org/10.1016/j.ymssp.2013.06.034
+    https://sci-hub.tw/j.ymssp.2013.06.034
     """
     
     def __init__(self, *system, **kwargs):
@@ -37,35 +65,6 @@ class FNSI(NonlinearStateSpace, StateSpaceIdent):
             kwargs['dt'] = 1  # unit sampling
 
         super().__init__(*sys, **kwargs)
-
-        self.nlx = NLS()
-        self.nly = NLS()
-
-    def add_nl(self, nlx=None, nly=None):
-        """Add nonlinear elements"""
-        # active elements can only be set when the system size is known.
-        # for fnsi this happens when we do subspace ID
-        if nlx is not None:
-            self.nlx = NLS(nlx)
-        if nly is not None:
-            self.nly = NLS(nly)
-        # only set NLs if system is defined
-        if self.n is not None:
-            self._set_active()
-
-    def _set_active(self):
-        self.nlx.set_active(self.n,self.m,self.p,self.n)
-        self.nly.set_active(self.n,self.m,self.p,self.p)
-
-        if self.E.size == 0:
-            self.E = np.zeros((self.n, self.nlx.n_nl))
-        if self.F.size == 0 and self.nly.n_nl:
-            self.F = np.zeros((self.p, self.nly.n_nl))
-            
-    def set_signal(self,signal):
-        self.signal = signal
-        if self.p is None:
-            self.p, self.m = signal.p, signal.m
 
     def to_cont(self, method='zoh', alpha=None):
         """Convert to discrete time. Only A and B changes for zoh method"""
@@ -80,12 +79,6 @@ class FNSI(NonlinearStateSpace, StateSpaceIdent):
         Fc = Dcext[:,self.m:]
         return Ac, Bc, Cc, Dc, Ec, Fc
 
-    def output(self, u, t=None, x0=None):
-        return dnlsim(self, u, t=t, x0=x0)
-
-    def jacobian(self, x0, weight=False):
-        return jacobian(x0, self, weight=weight)
-
     def ext_input(self, fmin=None, fmax=None):
         """Form the extended input and output
 
@@ -94,7 +87,7 @@ class FNSI(NonlinearStateSpace, StateSpaceIdent):
         Returns
         -------
         E : ndarray(npp,m+nnl) (complex)
-            FFT of the concatenated extended input vector e = [u, g].T
+            FFT of the concatenated extended input vector e = [u, -g].T
         Y : ndarray(npp,p) (complex)
             FFT of y.
         """

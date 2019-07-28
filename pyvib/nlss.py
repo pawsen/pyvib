@@ -36,24 +36,32 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
         self.nlx = NLS()
         self.nly = NLS()
 
-    def set_signal(self,signal):
-        self.signal = signal
-        
     def add_nl(self, nlx=None, nly=None):
         """Add nonlinear elements"""
-        # set active elements(if needed) now the system size is known
+        # active elements can only be set when the system size is known.
+        # for fnsi this happens when we do subspace ID
         if nlx is not None:
-            self.nlx = nlx
-            self.nlx.set_active(self.n,self.m,self.p,self.n)
+            self.nlx = NLS(nlx)
         if nly is not None:
-            self.nly = nly     
-            self.nly.set_active(self.n,self.m,self.p,self.p)
+            self.nly = NLS(nly)
+        # only set NLs if system is defined
+        if self.n is not None:
+            self._set_active()
+
+    def _set_active(self):
+        self.nlx.set_active(self.n,self.m,self.p,self.n)
+        self.nly.set_active(self.n,self.m,self.p,self.p)
 
         if self.E.size == 0:
             self.E = np.zeros((self.n, self.nlx.n_nl))
         if self.F.size == 0 and self.nly.n_nl:
             self.F = np.zeros((self.p, self.nly.n_nl))
-        
+            
+    def set_signal(self,signal):
+        self.signal = signal
+        if self.p is None:
+            self.p, self.m = signal.p, signal.m
+
     def output(self, u, t=None, x0=None):
         """Simulate output of a discrete-time nonlinear system."""
         return dnlsim(self, u, t=t, x0=x0)

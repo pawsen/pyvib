@@ -17,7 +17,8 @@ from .modal import modal_ac
 
 def _atleast_2d_or_none(arg):
     if arg is not None:
-        return np.atleast_2d(arg)
+        # always return a copy of the matrix!
+        return deepcopy(np.atleast_2d(arg))
 
 
 class StateSpace():

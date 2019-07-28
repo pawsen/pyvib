@@ -64,7 +64,9 @@ class Unilatteralspring(Nonlinear_Element):
         return dfdy[None]
 
 class Tanhdryfriction(Nonlinear_Element):
-    """Friction model. sign(ẏ) approximated by tanh. eps control the slope.
+    """Regulized friction model.
+
+    sign(ẏ) approximated by tanh. eps control the slope.
     Make sure the velocity is included in the output of the state space model
     """
     def __init__(self, eps, w, **kwargs):
@@ -95,25 +97,21 @@ class Tanhdryfriction(Nonlinear_Element):
                          (1 - np.tanh(ynl / self.eps)**2) / self.eps, w)
         return dfdy[None]
 
-class Pnlss(Nonlinear_Element):
+class Pnl(Nonlinear_Element):
     """Combinations of monomials in x and u"""
 
-    def __init__(self, degree, structure, eq = None, **kwargs):
+    def __init__(self, degree, structure, **kwargs):
         """Initialize active nonlinear terms/monomials to be optimized"""
         self.degree = np.asarray(degree)
         self.structure = structure
-        self.eq = eq
         super().__init__(**kwargs)
     
     def set_active(self,n,m,p,q):
+        """`q = n` for state NL and `q = p` for output NL"""
         # all possible terms
         self.powers = combinations(n+m, self.degree)
         self.n_nx = self.powers.shape[0]
-        
-        # for backward-compability
-        if self.eq in ('state', 'x'): q = n
-        if self.eq in ('output', 'y'): q = p
-        # q = n for 'x' and q = p for 'y'
+
         active = select_active(self.structure,n,m,q,self.degree)
         self._active = active
         # Compute the derivatives of the polynomials
