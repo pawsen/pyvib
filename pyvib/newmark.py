@@ -6,6 +6,13 @@ from scipy import linalg
 from scipy.linalg import norm, solve
 
 class Newmark():
+    """Nonlinear Newmark solver class.
+    
+    Input M,C,K and nonlin.
+    
+    See :func:`newmark_beta_nl` and :class:`.nolinear_elements.NLS`.
+    
+    """
     def __init__(self, M, C, K, nonlin, gtype=None):
         self.M = M
         self.C = C
@@ -33,14 +40,14 @@ class Newmark():
         try:
             gamma, beta = d[gtype]
         except KeyError as err:
-            raise Exception('Wrong key {}. Should be one of {}'.
-                            format(gtype, d.keys())) from err
+            raise Exception(f'Wrong key {gtype}. Should be one of {d.keys()}')\
+                            from err
 
         return gamma, beta
 
 def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
                     gamma=1/2, beta=1/4):
-    '''Newmark-beta nonlinear integration.
+    """Newmark-beta nonlinear integration.
 
     With gamma = 1/2, beta = 1/4, this correspond to the "Average
     acceleration" Method. Unconditional stable. Convergence: O(dt**2).
@@ -63,8 +70,7 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
     Equations are from Krenk: "Non-linear Modeling and analysis of Solids
         and Structures"
     See also: Cook: "Concepts and applications of FEA, chap 11 & 17"
-
-    '''
+    """
     tol = 1e-10
     itmax = 50
 
@@ -86,15 +92,14 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
     xd[0] = xd0
     # initial acceleration. eq. 11.12-13
     fl = C @ xd[0] + K @ x[0]
-    fnl = nonlin.force(x[0], xd[0])
+    fnl = nonlin.fnl(x[0], xd[0])
     xdd[0] = solve(M, fext[0] - fl - fnl)
 
     if sensitivity:
         V = np.hstack((np.eye(ndof), np.zeros((ndof, ndof))))
         dV = np.hstack((np.zeros((ndof, ndof)), np.eye(ndof)))
-        dfnl = nonlin.dforce(x[0], xd[0], is_force=True)
-        dfnl_d = nonlin.dforce(x[0], xd[0], is_force=False)
-        rhs = -(C + dfnl_d) @ dV - (K + dfnl) @ V
+        dfdx, dfdxd = nonlin.dfnl(x[0], xd[0])
+        rhs = -(C + dfdxd) @ dV - (K + dfdx) @ V
         ddV = solve(M, rhs)
 
     # time stepping
@@ -107,7 +112,7 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
 
         # force at current step
         fl = C @ xd[j] + K @ x[j]
-        fnl = nonlin.force(x[j], xd[j])
+        fnl = nonlin.fnl(x[j], xd[j])
         res = M @ xdd[j] + fl + fnl - fext[j]
 
         it = 0
@@ -124,18 +129,17 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
             Kt = ∇{u}r = K + ∇{u}f
             Ct = ∇{u̇}r = C + ∇{u̇}f
             """
+            # get derivative wrt both x, xd
+            dfdx, dfdxd = nonlin.dfdy(x[j], xd[j])
 
-            dfnl = nonlin.dforce(x[j], xd[j], is_force=True)
-            dfnl_d = nonlin.dforce(x[j], xd[j], is_force=False)
-
-            Seff = dfnl + dfnl_d * B2 + S_lin
+            Seff = dfdx + dfdxd * B2 + S_lin
             dx = - solve(Seff, res)
             xdd[j] += A2 * dx
             xd[j] += B2 * dx
             x[j] += dx
 
             fl = C @ xd[j] + K @ x[j]
-            fnl = nonlin.force(x[j], xd[j])
+            fnl = nonlin.fnl(x[j], xd[j])
             res = M @ xdd[j] + fl + fnl - fext[j]
 
             it += 1
@@ -145,24 +149,23 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
         if it == itmax:
             raise ValueError('Max iteration reached')
         if sensitivity:
-            dfnl = nonlin.dforce(x[j], xd[j], is_force=True)
-            dfnl_d = nonlin.dforce(x[j], xd[j], is_force=False)
+            dfdx, dfdxd = nonlin.dfnl(x[j], xd[j])
             V = V + dt*dV + (1/2 - beta) * dt**2 * ddV
             dV = dV + (1 - gamma) * dt * ddV
-            S = dfnl + S_lin + gamma/beta/dt * dfnl_d
+            S = dfdx + S_lin + gamma/beta/dt * dfdxd
             S = dt**2 * beta * S
-            rhs = -(C + dfnl_d) @ dV - (K + dfnl) @ V
+            rhs = -(C + dfdxd) @ dV - (K + dfdx) @ V
             ddV = solve(S, rhs)
             V = V + dt**2 * beta * ddV
             dV = dV + dt * gamma * ddV
     if sensitivity:
-        return x.T, xd.T, xdd.T, np.vstack((V, dV))
+        return x, xd, xdd, np.vstack((V, dV))
     else:
-        return x.T, xd.T, xdd.T
+        return x, xd, xdd
 
 
-def newmark_beta_lin(M, C, K, x0, xd0, t, r_ext):
-    '''
+def newmark_beta_lin(M, C, K, x0, xd0, t, r_ext, gamma=1/2, beta=1/4):
+    """
     Newmark-beta linear integration.
     With gamma = 1/2, beta = 1/4, this correspond to the "Average acceleration"
     Method. Unconditional stable. Convergence: O(dt**2).
@@ -181,9 +184,7 @@ def newmark_beta_lin(M, C, K, x0, xd0, t, r_ext):
         - State arrays. Size [nsteps, ndof]
 
     Equations are from Cook: "Concepts and applications of FEA"
-    '''
-    gamma = 1./2
-    beta = 1./4
+    """
 
     nsteps = len(t)
     ndof = M.shape[0]
@@ -213,9 +214,9 @@ def newmark_beta_lin(M, C, K, x0, xd0, t, r_ext):
         # 11.13-5a
         M_int = np.dot(M, a0 * x[j-1,:] + a1 * xd[j-1,:] + a2 * xdd[j-1,:])
         C_int = np.dot(C, a3 * x[j-1,:] + a4 * xd[j-1,:] + a5 * xdd[j-1,:])
-        x[j,:] = linalg.solve(Keff, M_int + C_int + r_ext(t[j]))
+        x[j,:] = solve(Keff, M_int + C_int + r_ext(t[j]))
 
         # update vel and accel, eq. 11.13-4a & 11.13-4b
-        xdd[j,:] = a0 * (x[j,:] - x[j-1,:] - dt*xd[j-1,:]) - a2 * xdd[j-1,:]
-        xd[j,:] = a3 * (x[j,:] - x[j-1,:]) - a4 * xd[j-1,:] - dt * a5 * xdd[j-1,:]
+        xdd[j] = a0 * (x[j] - x[j-1] - dt*xd[j-1]) - a2 * xdd[j-1]
+        xd[j] = a3 * (x[j] - x[j-1]) - a4 * xd[j-1] - dt * a5 * xdd[j-1]
     return x, xd, xdd

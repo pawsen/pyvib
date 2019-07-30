@@ -65,11 +65,14 @@ class Unilatteralspring(Nonlinear_Element):
 
 class Tanhdryfriction(Nonlinear_Element):
     """Regulized friction model.
+    
+    `kt*tanh(ẏ/eps)`
 
-    sign(ẏ) approximated by tanh. eps control the slope.
+    sign(ẏ) approximated by tanh. eps control the slope. kt is the 
+    friction limit force.
     Make sure the velocity is included in the output of the state space model
     """
-    def __init__(self, eps, w, **kwargs):
+    def __init__(self, eps, w, kt=1, **kwargs):
         self.eps = eps
         self.w = np.atleast_1d(w)
         self.n_ny = 1
@@ -83,7 +86,7 @@ class Tanhdryfriction(Nonlinear_Element):
         y = np.atleast_2d(y)
         # displacement of dofs attached to nl
         ynl =np.inner(self.w, y)  # (n_nx, ns)
-        f = np.tanh(ynl / self.eps)
+        f = self.kt*np.tanh(ynl / self.eps)
         return f
 
     def dfdx(self,x,y,u):
@@ -94,7 +97,7 @@ class Tanhdryfriction(Nonlinear_Element):
         y = np.atleast_2d(y)
         ynl = np.inner(w, y)
         dfdy = np.einsum('j,k->kj',
-                         (1 - np.tanh(ynl / self.eps)**2) / self.eps, w)
+                         self.kt*(1 - np.tanh(ynl / self.eps)**2) / self.eps, w)
         return dfdy[None]
 
 class Pnl(Nonlinear_Element):
@@ -215,7 +218,7 @@ class Polynomial(Nonlinear_Element):
     w = np.array([[1,-1,0,0], [0,1,0,0]]
     """
 
-    def __init__(self, exponent, w, structure='Full',**kwargs):
+    def __init__(self, exponent, w, kt=1, structure='Full',**kwargs):
         """
         exponents: ndarray (n_ny)
         w: ndarray (n_ny, p)
@@ -236,7 +239,7 @@ class Polynomial(Nonlinear_Element):
         y = np.atleast_2d(y)
         # displacement of dofs attached to nl
         ynl = y @ self.w.T  # [nt, yactive]
-        fnl = np.prod(ynl**self.exponent, axis=1)
+        fnl = self.kt * np.prod(ynl**self.exponent, axis=1)
         return fnl
 
     def dfdx(self,x,y,u):
@@ -258,16 +261,17 @@ class Polynomial(Nonlinear_Element):
             dfdyP[0,ip,:] = exp[ip]*np.prod(ynl**(exp-Ptmp[ip]), axis=1)
 
         # derivative wrt all y.
-        dfdy = np.einsum('ijk,jl->ilk',dfdyP, self.w)
+        dfdy = np.einsum('ijk,jl->ilk',self.kt * dfdyP, self.w)
         return dfdy
 
 
 class NLS(object):
-    """ Assemble nonlinear attachments
+    """ Assemble nonlinear attachments for usage with :class:`.nlss.NLSS`
     
     Note that each attachment is copied to ensure it truly belong to the NLS 
     it was initiated with
     
+    For simulations with Newmark see :class:``
     """
 
     def __init__(self, nls=None):
@@ -456,6 +460,85 @@ class NLS(object):
                 nls += n_nx
         
         return dfdx
+    
+    
+class SNLS(object):
+    """ Assemble nonlinear attachments for usage with :class:`.newmark.Newmark`
+    
+    Note that each attachment is copied to ensure it truly belong to the NLS 
+    it was initiated with
+    
+    For identification, see :class:`nlss.NLSS`
+    """
+
+    def __init__(self, nls=None):
+        self.nls = []
+        self.n_nl = 0
+        if nls is not None:
+            self.add(nls)
+
+    def add(self, nls):
+        if not isinstance(nls, list):
+            nls = [nls]
+        for nl in nls:
+            self.nls.append(deepcopy(nl))
+            self.n_nl += nl.n_nl
+
+    def fnl(self,q,u):
+        """Nonlinear force
+
+        q: ndarray(ndof, ns), displacement
+        u: ndarray(ndof, ns), velocity
+
+        Returns
+        -------
+        fnl: ndarray(ndof, ns)
+            If ns = 1, returns 1d array
+        """
+        # return empty array in case of no nonlinearities
+        if len(self.nls) == 0:
+            return np.array([])
+
+        y = np.atleast_2d(np.vstack((q,u)))
+        ndof, ns = y.shape
+        if ns == 1:  # TODO another hack!!!
+            fnl = np.zeros((ndof))
+        else:
+            fnl = np.zeros((ndof,ns))
+
+        for nl in self.nls:
+            fnl += nl.fnl(0,y,0)
+
+        return fnl
+    
+    def dfnl(self,q,u):
+        """Derivative of nonlinear force wrt. `q` and `u`
+        
+        q: ndarray(ndof, ns), displacement
+        u: ndarray(ndof, ns), velocity
+
+        Returns
+        -------
+        dfnl_dq: ndarray (ndof,ndof,ns)
+           If ns=1, returns 2d array
+        dfnl_du: ndarray (ndof,ndof,ns)
+           If ns=1, returns 2d array
+        """
+        # return empty array in case of no nonlinearities
+        if len(self.nls) == 0:
+            return np.array([])
+
+        y = np.atleast_2d(np.vstack((q,u)))
+        ndof, ns = y.shape
+
+        dfnl = np.zeros((ndof,ndof,ns))
+        for nl in self.nls:
+            dfnl += nl.dfdy(0,y,0)
+            
+        dfnl_dq = np.empty((ndof,ndof,ns))
+        dfnl_du = np.empty((ndof,ndof,ns))
+        
+        return dfnl_dq, dfnl_du
 
 
 
