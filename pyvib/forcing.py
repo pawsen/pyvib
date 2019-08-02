@@ -4,6 +4,7 @@
 import numpy as np
 from numpy.fft import ifft
 
+
 """
 Example of a closure-function. See also partial from ...
 def force(A, f, ndof, fdof):
@@ -216,7 +217,7 @@ def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full',rms=1, ngro
     # Because the ifft is for [0,2*pi[, there is no need to remove any point
     # when the generated signal is repeated.
     u = np.tile(u,(1,P))  # generate P periods
-    freq = np.linspace(0, fs, N)
+    freq = np.arange(N)/N*fs
 
     return u, _lines, freq
 

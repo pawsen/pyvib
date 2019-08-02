@@ -5,28 +5,36 @@ import numpy as np
 from scipy import linalg
 from scipy.linalg import norm, solve
 
+
 class Newmark():
     """Nonlinear Newmark solver class.
-    
+
     Input M,C,K and nonlin.
-    
+
     See :func:`newmark_beta_nl` and :class:`.nolinear_elements.NLS`.
-    
+
     """
-    def __init__(self, M, C, K, nonlin, gtype=None):
+    def __init__(self, M, C, K, nls, gtype=None):
         self.M = M
         self.C = C
         self.K = K
-        self.nonlin = nonlin
+        self.nls = nls
         if gtype is None:
             self.gamma = 1/2
             self.beta = 1/4
         else:
             self.gamma, self.beta = self._params(gtype)
 
-    def integrate_nl(self, x0, xd0, dt, fext, sensitivity=False):
-        return newmark_beta_nl(self.M, self.C, self.K, x0, xd0, dt, fext,
-                               self.nonlin, sensitivity, self.gamma, self.beta)
+    def integrate(self, u, dt, x0=None, v0=None, sensitivity=False):
+        # Check initial condition
+        ndof = self.M.shape[0]
+        if x0 is None:
+            x0 = np.zeros(ndof)
+        if v0 is None:
+            v0 = np.zeros(ndof)
+
+        return newmark_beta_nl(self.M, self.C, self.K, x0, v0, dt, u,
+                               self.nls, sensitivity, self.gamma, self.beta)
 
     def _params(self, gtype):
         # (gamma, beta)
@@ -79,7 +87,6 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
     A2 = 1 / beta / dt**2
     B2 = gamma / beta / dt
 
-    fext = fext.T
     ns = fext.shape[0]
     ndof = K.shape[0]
     # Pre-allocate arrays.
@@ -130,7 +137,7 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
             Ct = ∇{u̇}r = C + ∇{u̇}f
             """
             # get derivative wrt both x, xd
-            dfdx, dfdxd = nonlin.dfdy(x[j], xd[j])
+            dfdx, dfdxd = nonlin.dfnl(x[j], xd[j])
 
             Seff = dfdx + dfdxd * B2 + S_lin
             dx = - solve(Seff, res)

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import numpy as np
-import math
 import itertools
-from scipy.linalg import svd, norm
+import math
 
+import numpy as np
+from scipy.linalg import norm, svd
+from scipy.signal import decimate
 
 # general messages for LM/etc optimization
 TERMINATION_MESSAGES = {
@@ -18,6 +19,7 @@ TERMINATION_MESSAGES = {
     4: "Both `ftol`(cost) and `xtol`(step) termination conditions are satisfied."
 }
 
+
 class color:
     PURPLE = '\033[95m'
     CYAN = '\033[96m'
@@ -29,6 +31,7 @@ class color:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
     END = '\033[0m'
+
 
 def next_pow2(i):
     """
@@ -43,6 +46,7 @@ def next_pow2(i):
     exponent = math.ceil(math.log(i) / math.log(2))
     # the value: int(math.pow(2, exponent))
     return exponent
+
 
 def prime_factor(n):
     """Find the prime factorization of n
@@ -61,7 +65,8 @@ def prime_factor(n):
     [2, 3, 3, 5]
     """
     f = 2
-    increments = itertools.chain([1,2,2], itertools.cycle([4,2,4,2,4,6,2,6]))
+    increments = itertools.chain(
+        [1, 2, 2], itertools.cycle([4, 2, 4, 2, 4, 6, 2, 6]))
     for incr in increments:
         if f*f > n:
             break
@@ -71,6 +76,60 @@ def prime_factor(n):
         f += incr
     if n > 1:
         yield n
+
+
+def dsample(y, n, zero_phase=False):
+    """Low-pass filtering and downsampling.
+
+    The input can be downsampled(ie. u[::n]) as it does mot contains higher
+    harmonics, but y needs to be low-pass filtered n order to avoid aliasing.
+
+    If `zero_phase` is `False`, the first period is removed due to filter-edge
+    effects. If it is True `filtfit` is used for decimate and there will be
+    small edge effects in first and last period
+
+    See :func:`scipy.signal.decimate`
+
+    INPUT:
+        y: ndarray(Nt,P,R,p)
+        n: downsample factor
+        zero_phase: bool, default False
+    RETURN:
+      y: (N,p,R,P-1) decimated
+
+    """
+    Nt, p, R, P = y.shape
+    y = np.moveaxis(y, 3, 1).reshape(Nt*P, p, R, order='F')
+
+    # prime factor decomposition.
+    drate = list(prime_factor(n))
+
+    # actually all this is not necessary. Because: N = Nt/n
+    # length of decimated signal. Found from matlab help of decimate
+    x = Nt*P
+    for factor in drate:
+        x = np.ceil(x/factor).astype(int)
+
+    # decimated time points per period. Shall be integer!
+    N = x/P
+    assert N % 1 == 0, ('The dfactor does not match number of periods and '
+                        'time points!')
+    N = int(N)
+
+    # zero_phase = True results in small edge effects in first and last
+    # period. Instead we use lfilter, resulting in large edge effects in first
+    # period. We discard this period
+    for factor in drate:
+        y = decimate(y, q=factor, ftype='fir', axis=0, zero_phase=zero_phase)
+
+    # Remove first period to eliminate the edge effects due to the low-pass
+    # filter.
+    y = np.moveaxis(y.reshape(N, P, p, R, order='F'), 1, 3)
+    if zero_phase:
+        return y
+    else:
+        return y[..., 1:]
+
 
 def db(x, r=1):
     """relative value in dB
@@ -118,6 +177,7 @@ def import_npz(npz_file, namespace=globals()):
         except ValueError:
             namespace[varName] = data[varName]
 
+
 def window(iterable, n=3):
     """Returns a sliding window (of width n) over data from the iterable
     s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ..."""
@@ -129,6 +189,7 @@ def window(iterable, n=3):
     for element in it:
         result = result[1:] + (element,)
         yield result
+
 
 def rescale(x, mini=None, maxi=None):
     """Rescale x to 0-1.
@@ -156,6 +217,7 @@ def rescale(x, mini=None, maxi=None):
         maxi = np.max(x)
     return (x - mini) / (maxi - mini)
 
+
 def meanVar(Y, isnoise=False):
     """
     Y = fft(y)/nsper
@@ -170,13 +232,13 @@ def meanVar(Y, isnoise=False):
     p = Y.shape[2]
 
     # average over periods
-    Ymean = np.sum(Y,axis=2) / p
+    Ymean = np.sum(Y, axis=2) / p
 
     # subtract column mean from y in a broadcast way. Ie: y is 3D matrix and
     # for every 2D slice we subtract y_mean. Python automatically
     # broadcast(repeat) y_mean.
     # https://scipy.github.io/old-wiki/pages/EricsBroadcastingDoc
-    Y0 = Y - Ymean[...,None]
+    Y0 = Y - Ymean[..., None]
 
     W = []
     # weights. Only used if the signal is noisy and multiple periods are
@@ -195,6 +257,7 @@ def weightfcn(cov):
     for f in range(F):
         covinvsq[f] = matrix_square_inv(cov[f])
     return covinvsq
+
 
 def matrix_square_inv(A):
     """Calculate the inverse of the matrix square root of `A`
@@ -215,6 +278,7 @@ def matrix_square_inv(A):
     U, s, _ = svd(A, full_matrices=False)
     return U * 1/np.sqrt(s) @ U.conj().T
 
+
 def mmul_weight(mat, weight):
     """Add weight. Computes the Jacobian of the weighted error ``e_W(f) = W(f,:,:)*e(f)``
 
@@ -226,10 +290,11 @@ def mmul_weight(mat, weight):
     # np.matmul(weight, mat)
     return np.matmul(weight, mat)
 
+
 def normalize_columns(mat):
 
     # Rms values of each column
-    scaling = np.sqrt(np.mean(mat**2,axis=0))
+    scaling = np.sqrt(np.mean(mat**2, axis=0))
     # or scaling = 1/np.sqrt(mat.shape[0]) * np.linalg.norm(mat,ord=2,axis=0)
     # Robustify against columns with zero rms value
     scaling[scaling == 0] = 1
@@ -237,6 +302,7 @@ def normalize_columns(mat):
     # This modifies mat in place(ie the input mat). We do not want that.
     # mat /= scaling
     return mat/scaling, scaling
+
 
 def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
        gtol=1e-8, cost_normalize=None, args=(), kwargs={}):
@@ -290,9 +356,9 @@ def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
 
     # Allow for different kinds of cost_normalization
     if cost_normalize is None:
-        _cost_normalize = lambda x: x
+        def _cost_normalize(x): return x
     elif np.isscalar(cost_normalize):
-        _cost_normalize = lambda x: x/cost_normalize
+        def _cost_normalize(x): return x/cost_normalize
     else:  # if callable(obj)
         _cost_normalize = cost_normalize
 
@@ -328,12 +394,12 @@ def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
         sr = s.copy()  # only saved to calculate cond. number later
         while cost >= cost_old and ninner < ninner_max and not stop:
             s /= (s**2 + lamb**2)
-            ds = -np.linalg.multi_dot((err_old, U[:,:r] * s, Vt[:r]))
+            ds = -np.linalg.multi_dot((err_old, U[:, :r] * s, Vt[:r]))
             ds /= scaling
 
             x0test = x0 + ds
             err = fun(x0test, *args, **kwargs)
-            cost = np.dot(err,err)
+            cost = np.dot(err, err)
             if cost >= cost_old:
                 # step unsuccessful, increase lambda, ie. Lean more towards
                 # gradient descent method(converges in larger range)
@@ -382,7 +448,7 @@ def lm(fun, x0, jac, info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8,
               f"initial cost {_cost_normalize(cost_vec[0]):.4e}, "
               f"final cost {_cost_normalize(cost):.4e}")
 
-    res = {'x':x0, 'cost': cost, 'fun':err, 'niter': niter, 'x_mat':
-           x0_mat[:niter], 'cost_vec':cost_vec[niter], 'message':message,
-           'success':status > 0, 'nfev':nfev, 'njev':niter, 'status':status}
+    res = {'x': x0, 'cost': cost, 'fun': err, 'niter': niter, 'x_mat':
+           x0_mat[:niter], 'cost_vec': cost_vec[niter], 'message': message,
+           'success': status > 0, 'nfev': nfev, 'njev': niter, 'status': status}
     return res
