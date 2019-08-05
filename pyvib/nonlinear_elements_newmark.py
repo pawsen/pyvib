@@ -81,7 +81,7 @@ class NLS(object):
         """
         # return zero array in case of no nonlinearities
         if len(self.nls) == 0:
-            return np.zeros((len(q), len(q)))
+            return np.zeros((len(q), len(q))), np.zeros((len(q), len(q)))
 
 #        q = np.atleast_2d(q)
 #        ndof, ns = q.shape
