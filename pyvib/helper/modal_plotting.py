@@ -188,7 +188,7 @@ def plot_subspace_model(models, G, covG, norm_freq, fs, *args, **kwargs):
             tmp[:,i] = covG[:,i,i]
         tmp2 = np.empty_like(G, dtype=complex)
         for f in range(F):
-            tmp2[f] = tmp[f].reshape((p,m))
+            tmp2[f] = tmp[f].reshape((m,p))
         stdG = np.sqrt(tmp2)
 
     #len(models)
