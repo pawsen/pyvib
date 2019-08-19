@@ -10,10 +10,12 @@ The rest is by
 Paw Møller <pawsen@gmail.com>
 """
 
+from collections import defaultdict
+
 import numpy as np
 from numpy.fft import irfft
-from scipy.linalg import lstsq, toeplitz, eig, inv, norm, solve
-from collections import defaultdict
+from scipy.linalg import eig, inv, lstsq, norm, solve, toeplitz
+
 from .common import window
 
 
@@ -476,6 +478,27 @@ def stabilization(sd, fmin=0, fmax=np.inf, tol_freq=1, tol_damping=5,
 
     return SDout
 
+
+def mkc2ss(M, K, C=None):
+    """Calculate continuous state space matrices from FE model
+    """
+    n, n = M.shape
+    if C is None:
+        C = np.zeros_like(M)
+
+    # Create state space system, A, B, C, D. D=0
+    Z = np.zeros((n, n))
+    I = np.eye(n)
+    a = np.vstack((
+        np.hstack((Z, I)),
+        np.hstack((-solve(M, K, assume_a='pos'),
+                   -solve(M, C, assume_a='pos')))))
+    b = np.vstack((Z, inv(M)))
+    c = np.hstack((I, Z))
+    d = np.zeros((n, n))
+    return a, b, c, d
+
+
 def frf_mkc(M, K, fmin, fmax, fres, C=None, idof=None, odof=None):
     """Compute the frequency response for a FEM model, given a range of
     frequencies.
@@ -518,8 +541,7 @@ def frf_mkc(M, K, fmin, fmax, fres, C=None, idof=None, odof=None):
     """
 
     n, n = M.shape
-    if C is None:
-        C = np.zeros(M.shape)
+    a, b, c, d = mkc2ss(M=M, K=K, C=C)
     # in/out DOFs to use
     if idof is None:
         idof = np.arange(n)
@@ -528,26 +550,16 @@ def frf_mkc(M, K, fmin, fmax, fres, C=None, idof=None, odof=None):
     n1 = len(idof)
     n2 = len(odof)
 
-    # Create state space system, A, B, C, D. D=0
-    Z = np.zeros((n, n))
-    I = np.eye(n)
-    A = np.vstack((
-        np.hstack((Z, I)),
-        np.hstack((-solve(M, K, assume_a='pos'),
-                   -solve(M, C, assume_a='pos')))))
-    B = np.vstack((Z, inv(M)))
-    C = np.hstack((I, Z))
-
     F = int(np.ceil((fmax-fmin) / fres))
     freq = np.linspace(fmin, fmax, F+1)  # + F*fres
 
-    mat = np.zeros((n1,n2,F+1), dtype=complex)
+    mat = np.zeros((n1, n2, F+1), dtype=complex)
     for k in range(F+1):
-        mat[...,k] = solve(((1j*2*np.pi*freq[k] * np.eye(2*n) - A)).T,
-                           C[odof].T).T @ B[:,idof]
+        mat[...,k] = solve(((1j*2*np.pi*freq[k] * np.eye(2*n) - a)).T,
+                           c[odof].T).T @ b[:,idof]
 
     # Map to right index.
-    H = np.zeros((n1,n2,F+1), dtype=complex)
+    H = np.zeros((n1, n2, F+1), dtype=complex)
     for i in range(n2):
         il = odof[i]
         for j in range(n1):
