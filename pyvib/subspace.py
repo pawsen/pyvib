@@ -131,6 +131,7 @@ class Subspace(StateSpace, StateSpaceIdent):
     def extract_model(self, y=None, u=None, models=None, n=None, t=None, x0=None):
         """extract the best model using validation data"""
 
+        # TODO: this should take T1 into account. Maybe use extract_model from  state space
         dt = 1/self.signal.fs
         if models is None:
             models = self.models

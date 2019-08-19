@@ -5,8 +5,8 @@ import numpy as np
 from numpy.linalg import norm
 from scipy.interpolate import interp1d
 
-from .statespace import NonlinearStateSpace, StateSpaceIdent
 from .nonlinear_elements import NLS
+from .statespace import NonlinearStateSpace, StateSpaceIdent
 
 # http://www.brendangregg.com/books.html
 
@@ -135,22 +135,21 @@ def dnlsim(system, u, t=None, x0=None):
         u_dt = u_dt_interp(tout).transpose()
 
     # Simulate the system
-    # the output from fnl is (n_nl,1). The time stepping expect (n_nl)
     for i in range(0, out_samples - 1):
-        # Output equation y(t) = C*x(t) + D*u(t) + F*j(t)
-        # TODO jvec: must not depend on y!
-        hvec = system.nly.fnl(xout[i],0,u_dt[i])
+        # Output equation y(t) = C*x(t) + D*u(t) + F*eta(x,u)
+        # TODO hvec: must not depend on y!
+        hvec = system.nly.fnl(xout[i], 0, u_dt[i])
         yout[i, :] = (np.dot(system.C, xout[i, :]) +
-                      np.dot(system.D, u_dt[i, :]) + 
+                      np.dot(system.D, u_dt[i, :]) +
                       np.dot(system.F, hvec))
-        # State equation x(t+1) = A*x(t) + B*u(t) + E*zeta(y(t),ẏ(t))
-        gvec = system.nlx.fnl(xout[i, :],yout[i, :],u_dt[i, :])
+        # State equation x(t+1) = A*x(t) + B*u(t) + E*zeta(x,[y,ẏ],u)
+        gvec = system.nlx.fnl(xout[i, :], yout[i, :], u_dt[i, :])
         xout[i+1, :] = (np.dot(system.A, xout[i, :]) +
                         np.dot(system.B, u_dt[i, :]) +
                         np.dot(system.E, gvec))
 
     # Last point
-    hvec = system.nly.fnl(xout[-1, :],0,u_dt[-1, :])
+    hvec = system.nly.fnl(xout[-1, :], 0, u_dt[-1, :])
     yout[-1, :] = (np.dot(system.C, xout[-1, :]) +
                    np.dot(system.D, u_dt[-1, :]) +
                    np.dot(system.F, hvec))
