@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def spline(x, a, xv):
     """
 
@@ -23,10 +24,10 @@ def spline(x, a, xv):
     # Point is smaller than the first spline knot
     if xv < x[0]:
         x0 = x[0]
-        a0 = a[0,1]
-        a1 = a[0,2]
-        a2 = a[0,3]
-        a3 = a[0,4]
+        a0 = a[0, 1]
+        a1 = a[0, 2]
+        a2 = a[0, 3]
+        a3 = a[0, 4]
         y0 = a0 + a1 * x0 + a2 * x0**2 + a3 * x0**3
         s = a1 + 2 * a2 * x0 + 3 * a3 * x0**2
         p = y0 - s * x0
@@ -37,10 +38,10 @@ def spline(x, a, xv):
     # Point is larger than the last spline knot
     if xv > x[-1]:
         x0 = x[-1]
-        a0 = a[-1,0]
-        a1 = a[-1,1]
-        a2 = a[-1,2]
-        a3 = a[-1,3]
+        a0 = a[-1, 0]
+        a1 = a[-1, 1]
+        a2 = a[-1, 2]
+        a3 = a[-1, 3]
         y0 = a0 + a1 * x0 + a2 * x0**2 + a3 * x0**3
         s = a1 + 2 * a2 * x0 + 3 * a3 * x0**2
         p = y0 - s * x0
@@ -61,6 +62,7 @@ def spline(x, a, xv):
     yvp = a1 + 2 * a2 * xv + 3 * a3 * xv**2
 
     return yv, yvp
+
 
 def piecewise_linear(x, y, s, delta=None, xv=[]):
     """Interpolate piecewise segments.
@@ -90,13 +92,13 @@ def piecewise_linear(x, y, s, delta=None, xv=[]):
     nv = xv.shape
 
     # Find out which segments, the xv points are located in.
-    indv = np.outer(x[:,None],np.ones(nv)) - \
-           np.outer(np.ones((n,)),xv)
-    indv = np.floor((n - sum(np.sign(indv),0)) / 2)
+    indv = np.outer(x[:, None], np.ones(nv)) - \
+        np.outer(np.ones((n,)), xv)
+    indv = np.floor((n - sum(np.sign(indv), 0)) / 2)
     indv = indv.reshape(nv)
 
     yv = np.zeros(nv)
-    for i in range(1,n+1):
+    for i in range(1, n+1):
         ind = np.where(indv == i)
         yv[ind] = s[i] * xv[ind] + y[i-1] - s[i] * x[i-1]
 
@@ -107,7 +109,7 @@ def piecewise_linear(x, y, s, delta=None, xv=[]):
         return yv
 
     if len(x) > len(delta):
-        raise ValueError('Wrong length of delta. Should be len(x)',len(delta))
+        raise ValueError('Wrong length of delta. Should be len(x)', len(delta))
 
     for i in range(n):
         dd = delta[i]
@@ -127,17 +129,18 @@ def piecewise_linear(x, y, s, delta=None, xv=[]):
         yv[indv] = h00*ya + 2*h10*dd*sa + h01*yb + 2*h11*dd*sb
     return yv
 
+
 def piecewise_linear_der(x, y, s, delta=None, xv=[]):
     n = len(x)
     nv = xv.shape
 
-    indv = np.outer(x[:,None],np.ones(nv)) - \
-           np.outer(np.ones((n,)),xv)
-    indv = np.floor((n - sum(np.sign(indv),0)) / 2)
+    indv = np.outer(x[:, None], np.ones(nv)) - \
+        np.outer(np.ones((n,)), xv)
+    indv = np.floor((n - sum(np.sign(indv), 0)) / 2)
     indv = indv.reshape(nv)
 
     yvd = np.zeros(nv)
-    for i in range(0,n+1):
+    for i in range(0, n+1):
         ind = np.where(indv == i)
         yvd[ind] = s[i]
 

@@ -11,15 +11,16 @@ from .filter import differentiate, integrate
 from .frf import bla_periodic, covariance
 from .helper.plotting import periodicity
 
+
 class Signal():
     def __init__(self, u, y, yd=None, fs=1):
         # in case there is only one realization, ie. (npp,m,P)
         if len(u.shape) == 3:
-            u = u[:,:,None]
+            u = u[:, :, None]
         if len(y.shape) == 3:
-            y = y[:,:,None]
+            y = y[:, :, None]
         if yd is not None and len(yd.shape) == 3:
-            yd = yd[:,:,None]
+            yd = yd[:, :, None]
         self.u = u
         self.y = y
         self._yd = yd
@@ -43,14 +44,14 @@ class Signal():
     def bla(self):
         """Get best linear approximation"""
         # TODO bla expects  m, R, P, F = U.shape
-        self.U = fft(self.u, axis=0)[self.lines].transpose((1,2,3,0))
-        self.Y = fft(self.y, axis=0)[self.lines].transpose((1,2,3,0))
+        self.U = fft(self.u, axis=0)[self.lines].transpose((1, 2, 3, 0))
+        self.Y = fft(self.y, axis=0)[self.lines].transpose((1, 2, 3, 0))
         self.G, self.covG, self.covGn = bla_periodic(self.U, self.Y)
-        self.G = self.G.transpose((2,0,1))
+        self.G = self.G.transpose((2, 0, 1))
         if self.covG is not None:
-            self.covG = self.covG.transpose((2,0,1))
+            self.covG = self.covG.transpose((2, 0, 1))
         if self.covGn is not None:
-            self.covGn = self.covGn.transpose((2,0,1))
+            self.covGn = self.covGn.transpose((2, 0, 1))
         return self.G, self.covG, self.covGn
 
     @property
@@ -72,8 +73,8 @@ class Signal():
             savey = True
         um = u.mean(axis=-1)  # (npp,m,R)
         ym = y.mean(axis=-1)
-        um = um.swapaxes(1,2).reshape(-1,self.m, order='F')  # (npp*R,m)
-        ym = ym.swapaxes(1,2).reshape(-1,self.p, order='F')  # (npp*R,p)
+        um = um.swapaxes(1, 2).reshape(-1, self.m, order='F')  # (npp*R,m)
+        ym = ym.swapaxes(1, 2).reshape(-1, self.p, order='F')  # (npp*R,p)
 
         if saveu:
             self.um = um
@@ -91,7 +92,7 @@ class Signal():
             pass
         if self._ydm is None:
             ydm = self._yd.mean(axis=-1)
-            self._ydm = ydm.swapaxes(1,2).reshape(-1,self.p, order='F')
+            self._ydm = ydm.swapaxes(1, 2).reshape(-1, self.p, order='F')
         return self._ydm  # (npp*R,m)
 
     def periodicity(self, dof=0, R=0, P=None, n=1, fig=None, ax=None, **kwargs):
@@ -99,6 +100,7 @@ class Signal():
 
         return periodicity(y=self.y, fs=self.fs, dof=dof, R=R, P=P, n=n,
                            fig=fig, ax=ax, **kwargs)
+
 
 def downsample(y, u, n, nsper=None, keep=False):
     """Filter and downsample signals
@@ -132,10 +134,11 @@ def downsample(y, u, n, nsper=None, keep=False):
     # Removal of the last simulated period to eliminate the edge effects
     # due to the low-pass filter.
     if not keep:
-        y = y[...,:-1]
-        u = u[...,:-1]
+        y = y[..., :-1]
+        u = u[..., :-1]
 
     return u, y
+
 
 def filt(self, lowcut, highcut, order=3):
     from scipy import signal
@@ -150,10 +153,10 @@ def filt(self, lowcut, highcut, order=3):
     return signal.filtfilt(b, a, self.y)
 
 
-
 class Signal2(object):
     """ Holds common properties for a signal
     """
+
     def __init__(self, u, fs, y=None, yd=None, ydd=None):
         """
         Parameters
@@ -207,7 +210,7 @@ class Signal2(object):
         _nper = int(np.floor(ns / nsper))
         if any(p > _nper - 1 for p in per):
             raise ValueError('Period too high. Only {} periods in data.'.
-                             format(_nper),per)
+                             format(_nper), per)
 
         self.iscut = True
         self.nper = len(per)
@@ -217,14 +220,13 @@ class Signal2(object):
 
         # extract periodic signal
         if self.isset_y:
-            self.y_per = _cut(self.y, per, self.nsper,offset)
+            self.y_per = _cut(self.y, per, self.nsper, offset)
         if self.isset_yd:
-            self.yd_per = _cut(self.yd, per, self.nsper,offset)
+            self.yd_per = _cut(self.yd, per, self.nsper, offset)
         if self.isset_ydd:
-            self.ydd_per = _cut(self.ydd, per, self.nsper,offset)
+            self.ydd_per = _cut(self.ydd, per, self.nsper, offset)
 
         self.u_per = _cut(self.u, per, self.nsper, offset)
-
 
     def periodicity(self, nsper=None, dof=0, offset=0, fig=None, ax=None,
                     **kwargs):
@@ -245,7 +247,7 @@ class Signal2(object):
 
         fs = self.fs
 
-        y = self.y[dof,offset:]
+        y = self.y[dof, offset:]
         ns = len(y)
         ndof = self.ndof
         # number of periods
@@ -263,7 +265,7 @@ class Signal2(object):
         # holds the similarity of the signal, compared to reference period
         va = np.empty(nsper*(nper-1))
 
-        nnvec = np.arange(-nper,nper+1, dtype='int')
+        nnvec = np.arange(-nper, nper+1, dtype='int')
         va_per = np.empty(nnvec.shape)
         for i, n in enumerate(nnvec):
             # index of the current period. Moving from 1 to nn-1 because of
@@ -274,7 +276,7 @@ class Signal2(object):
             elif ist > ns - nsper - 1:
                 break
 
-            idx = np.arange(ist,ist+nsper)
+            idx = np.arange(ist, ist+nsper)
             # difference between signals in dB
             va[idx] = db(y[idx] - yref)
             va_per[i] = np.amax(va[idx])
@@ -285,9 +287,9 @@ class Signal2(object):
             ax.clear()
 
         ax.set_title('Periodicity of signal for DOF {}'.format(dof))
-        ax.plot(t,signal,'--', label='signal', **kwargs)  # , rasterized=True)
-        ax.plot(t[:ilast],va, label='periodicity', **kwargs)
-        for i in range(1,nper):
+        ax.plot(t, signal, '--', label='signal', **kwargs)  # , rasterized=True)
+        ax.plot(t[:ilast], va, label='periodicity', **kwargs)
+        for i in range(1, nper):
             x = t[nsper * i]
             ax.axvline(x, color='k', linestyle='--')
 
@@ -308,8 +310,8 @@ class Signal2(object):
         y = np.empty(ydd.shape)
         yd = np.empty(ydd.shape)
         for i in range(ndof):
-            y[i,:], yd[i,:] = integrate(ydd[i,:], fs, lowcut, highcut,
-                                        isnumeric=isnumeric)
+            y[i, :], yd[i, :] = integrate(ydd[i, :], fs, lowcut, highcut,
+                                          isnumeric=isnumeric)
 
         self.isset_y = True
         self.isset_yd = True
@@ -327,7 +329,8 @@ class Signal2(object):
         yd = np.empty(y.shape)
         ydd = np.empty(y.shape)
         for i in range(ndof):
-            yd[i,:], ydd[i,:] = differentiate(y[i,:], fs, isnumeric=isnumeric)
+            yd[i, :], ydd[i, :] = differentiate(
+                y[i, :], fs, isnumeric=isnumeric)
 
         self.yd = yd
         self.ydd = ydd
@@ -354,13 +357,15 @@ class Signal2(object):
     #     WT = namedtuple('WT', 'f1 f2 nf f00  dof pad finst wtinst time freq y')
     #     self.wt = WT(f1, f2, nf, f00, dof, pad,finst, wtinst, time, freq, y)
 
+
 def _set_signal(y):
     if y is not None:
         y = np.atleast_2d(y)
         return y
     return None
 
-def _cut(x,per,nsper,offset=0):
+
+def _cut(x, per, nsper, offset=0):
     """Extract periodic signal from original signal"""
 
     nper = len(per)
@@ -368,10 +373,9 @@ def _cut(x,per,nsper,offset=0):
     x_per = np.empty((ndof, nper*nsper))
 
     for i, p in enumerate(per):
-        x_per[:,i*nsper: (i+1)*nsper] = x[:,offset + p*nsper:
-                                          offset+(p+1)*nsper]
+        x_per[:, i*nsper: (i+1)*nsper] = x[:, offset + p*nsper:
+                                           offset+(p+1)*nsper]
     return x_per
-
 
 
 # def derivative(Y):

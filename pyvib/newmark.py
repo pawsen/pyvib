@@ -14,6 +14,7 @@ class Newmark():
     See :func:`newmark_beta_nl` and :class:`.nolinear_elements.NLS`.
 
     """
+
     def __init__(self, M, C, K, nls, gtype=None):
         self.M = M
         self.C = C
@@ -44,14 +45,15 @@ class Newmark():
             'fox-goodwin': (1/2, 1/12),
             'linear':      (1/2, 1/6),
             'average':     (1/2, 1/4)
-            }
+        }
         try:
             gamma, beta = d[gtype]
         except KeyError as err:
             raise Exception(f'Wrong key {gtype}. Should be one of {d.keys()}')\
-                            from err
+                from err
 
         return gamma, beta
+
 
 def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
                     gamma=1/2, beta=1/4):
@@ -113,14 +115,16 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
     for j in range(1, ns):
         #dt = t[j] - t[j-1]
         # Prediction step
+        xdd[j] = 0  # xdd[j-1]
+        #xd[j] = xd[j-1] + dt * xdd[j-1]
+        #x[j] = x[j-1] + dt * xd[j-1] + 1/2 * dt**2 * xdd[j-1]
         xd[j] = xd[j-1] + A1 * xdd[j-1]
         x[j] = x[j-1] + dt * xd[j-1] + B1 * xdd[j-1]
-        xdd[j] = 0  # xdd[j-1]
 
         # force at current step
         fl = C @ xd[j] + K @ x[j]
         fnl = nonlin.fnl(x[j], xd[j])
-        res = M @ xdd[j] + fl + fnl - fext[j]
+        res = - M @ xdd[j] - fl - fnl + fext[j]
 
         it = 0
         dx = 1
@@ -139,18 +143,18 @@ def newmark_beta_nl(M, C, K, x0, xd0, dt, fext, nonlin, sensitivity=False,
             # get derivative wrt both x, xd
             dfdx, dfdxd = nonlin.dfnl(x[j], xd[j])
 
-            Seff = dfdx + dfdxd * B2 + S_lin
-            dx = - solve(Seff, res)
+            Seff = dfdx + gamma/beta/dt * dfdxd + S_lin
+            dx = solve(Seff, res)
             xdd[j] += A2 * dx
             xd[j] += B2 * dx
             x[j] += dx
 
             fl = C @ xd[j] + K @ x[j]
             fnl = nonlin.fnl(x[j], xd[j])
-            res = M @ xdd[j] + fl + fnl - fext[j]
+            res = -M @ xdd[j] - fl - fnl + fext[j]
 
             it += 1
-            #print("j: {}, i: {}, delta_x: {}, res: {}, xd_norm: {}".
+            # print("j: {}, i: {}, delta_x: {}, res: {}, xd_norm: {}".
             #      format(j,i,delta_x,res_norm,delta_x_norm))
 
         if it == itmax:
@@ -200,11 +204,11 @@ def newmark_beta_lin(M, C, K, x0, xd0, t, r_ext, gamma=1/2, beta=1/4):
     xd = np.zeros([nsteps, ndof], dtype=float)
     x = np.zeros([nsteps, ndof], dtype=float)
 
-    x[0,:] = x0
-    xd[0,:] = xd0
+    x[0, :] = x0
+    xd[0, :] = xd0
     # initial acceleration. eq. 11.12-13
-    r_int = np.dot(K,x[0,:]) + np.dot(C,xd[0,:])
-    xdd[0,:] = linalg.solve(M, r_ext(0) - r_int)
+    r_int = np.dot(K, x[0, :]) + np.dot(C, xd[0, :])
+    xdd[0, :] = linalg.solve(M, r_ext(0) - r_int)
 
     # time stepping
     for j in range(1, nsteps):
@@ -219,9 +223,9 @@ def newmark_beta_lin(M, C, K, x0, xd0, t, r_ext, gamma=1/2, beta=1/4):
         # 11.13-5b
         Keff = a0 * M + a3 * C + K
         # 11.13-5a
-        M_int = np.dot(M, a0 * x[j-1,:] + a1 * xd[j-1,:] + a2 * xdd[j-1,:])
-        C_int = np.dot(C, a3 * x[j-1,:] + a4 * xd[j-1,:] + a5 * xdd[j-1,:])
-        x[j,:] = solve(Keff, M_int + C_int + r_ext(t[j]))
+        M_int = np.dot(M, a0 * x[j-1, :] + a1 * xd[j-1, :] + a2 * xdd[j-1, :])
+        C_int = np.dot(C, a3 * x[j-1, :] + a4 * xd[j-1, :] + a5 * xdd[j-1, :])
+        x[j, :] = solve(Keff, M_int + C_int + r_ext(t[j]))
 
         # update vel and accel, eq. 11.13-4a & 11.13-4b
         xdd[j] = a0 * (x[j] - x[j-1] - dt*xd[j-1]) - a2 * xdd[j-1]

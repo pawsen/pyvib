@@ -3,7 +3,8 @@
 
 # import matplotlib.pyplot as plt
 import numpy as np
-from scipy.linalg import solve, norm
+from scipy.linalg import norm, solve
+
 
 def spline(d, nspline):
     """The inputs are:
@@ -27,51 +28,51 @@ def spline(d, nspline):
 
     # index of kn before zero
     j0 = np.where(kn <= 0)[0][-1]
-    Q = np.zeros((nk,nk))
+    Q = np.zeros((nk, nk))
 
     for j in range(nk):
         if j == j0:
             t0 = -kn[j]/(kn[j+1]-kn[j])
 
-            Q[0,j] = (t0**3-2*t0**2+t0) * (kn[j+1]-kn[j])
-            Q[0,j+1] = (t0**3-t0**2) * (kn[j+1]-kn[j])
+            Q[0, j] = (t0**3-2*t0**2+t0) * (kn[j+1]-kn[j])
+            Q[0, j+1] = (t0**3-t0**2) * (kn[j+1]-kn[j])
 
-            Q[nk-1,j] = (3*t0**2-4*t0+1) * (kn[j+1]-kn[j])
-            Q[nk-1,j+1] = (3*t0**2-2*t0) * (kn[j+1]-kn[j])
+            Q[nk-1, j] = (3*t0**2-4*t0+1) * (kn[j+1]-kn[j])
+            Q[nk-1, j+1] = (3*t0**2-2*t0) * (kn[j+1]-kn[j])
 
             if j != 0:
-                Q[j,j-1] = 1/(kn[j]-kn[j-1])
-                Q[j,j] = 2 * (1/(kn[j]-kn[j-1]) + 1/(kn[j+1]-kn[j]))
-                Q[j,j+1] = 1/(kn[j+1]-kn[j])
+                Q[j, j-1] = 1/(kn[j]-kn[j-1])
+                Q[j, j] = 2 * (1/(kn[j]-kn[j-1]) + 1/(kn[j+1]-kn[j]))
+                Q[j, j+1] = 1/(kn[j+1]-kn[j])
 
         elif j != 0 and j != j0 and j != nk-1:
-            Q[j,j-1] = 1/(kn[j]-kn[j-1])
-            Q[j,j] = 2*(1/(kn[j]-kn[j-1]) + 1/(kn[j+1]-kn[j]))
-            Q[j,j+1] = 1/(kn[j+1]-kn[j])
+            Q[j, j-1] = 1/(kn[j]-kn[j-1])
+            Q[j, j] = 2*(1/(kn[j]-kn[j-1]) + 1/(kn[j+1]-kn[j]))
+            Q[j, j+1] = 1/(kn[j+1]-kn[j])
 
-    S = np.zeros((nk,nk))
+    S = np.zeros((nk, nk))
     for j in range(nk):
         if j == j0:
             t0 = -kn[j]/(kn[j+1]-kn[j])
 
-            S[0,j] = -(2*t0**3-3*t0**2+1)
-            S[0,j+1] = -(-2*t0**3+3*t0**2)
+            S[0, j] = -(2*t0**3-3*t0**2+1)
+            S[0, j+1] = -(-2*t0**3+3*t0**2)
 
-            S[nk-1,j] = 6*(t0-t0**2)
-            S[nk-1,j+1] = -6*(t0-t0**2)
+            S[nk-1, j] = 6*(t0-t0**2)
+            S[nk-1, j+1] = -6*(t0-t0**2)
 
             if j != 0:
-                S[j,j-1] = -3/(kn[j]-kn[j-1])**2
-                S[j,j] = 3 * (1/(kn[j]-kn[j-1])**2 - 1/(kn[j+1]-kn[j])**2)
-                S[j,j+1] = 3/(kn[j+1]-kn[j])**2
+                S[j, j-1] = -3/(kn[j]-kn[j-1])**2
+                S[j, j] = 3 * (1/(kn[j]-kn[j-1])**2 - 1/(kn[j+1]-kn[j])**2)
+                S[j, j+1] = 3/(kn[j+1]-kn[j])**2
 
         elif j != 0 and j != j0 and j != nk-1:
-            S[j,j-1] = -3/(kn[j]-kn[j-1])**2
-            S[j,j] = 3*(1/(kn[j]-kn[j-1])**2 - 1/(kn[j+1]-kn[j])**2)
-            S[j,j+1] = 3/(kn[j+1]-kn[j])**2
+            S[j, j-1] = -3/(kn[j]-kn[j-1])**2
+            S[j, j] = 3*(1/(kn[j]-kn[j-1])**2 - 1/(kn[j+1]-kn[j])**2)
+            S[j, j+1] = 3/(kn[j+1]-kn[j])**2
 
     dx = solve(Q, S)
-    x = np.zeros((nspline,nk,ns))
+    x = np.zeros((nspline, nk, ns))
 
     for j in range(nspline):
 
@@ -93,13 +94,13 @@ def spline(d, nspline):
         C = (t**3-2*t**2+t) * (kn[j+1]-kn[j])
         D = (t**3-t**2) * (kn[j+1]-kn[j])
 
-        x[j,j,:] += A
-        x[j,j+1,:] += B
+        x[j, j, :] += A
+        x[j, j+1, :] += B
 
         for k in range(nk):
-            x[j,k,:] += C*dx[j,k] + D*dx[j+1,k]
+            x[j, k, :] += C*dx[j, k] + D*dx[j+1, k]
 
-    xs = np.squeeze(np.sum(x,0))
+    xs = np.squeeze(np.sum(x, 0))
     return xs, kn, dx
 
 

@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import matplotlib.patches as patches
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.widgets import Slider, CheckButtons
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.widgets import CheckButtons, Slider
+from mpl_toolkits.mplot3d import Axes3D
+
 
 class _rfsPlotBuilder(object):
     """
@@ -27,12 +28,12 @@ class _rfsPlotBuilder(object):
     fig.canvas.flush_events()
 
     """
+
     def __init__(self, rfs):
 
         self.rfs = rfs
 
-
-        fig= plt.figure()
+        fig = plt.figure()
         ax = fig.add_subplot(211)
         ax2 = fig.add_subplot(223, projection='3d')
         ax3 = fig.add_subplot(224)
@@ -47,16 +48,16 @@ class _rfsPlotBuilder(object):
 
         # plot acceleration signal
         t = np.arange(self.rfs.ns)/self.rfs.fs
-        ax.plot(t, self.rfs.ydd,'-k')
+        ax.plot(t, self.rfs.ydd, '-k')
         #ax.plot(t, self.rfs.y,'-k')
         ax.set_xlabel('Time (s)')
         ax.set_ylabel(r'Acceleration ($m/s^2$)')
         ax.set_title('Acceleration, for DOF {}'.format(self.rfs.dofs[0]))
 
-        #¤ back to rectangular settings
+        # ¤ back to rectangular settings
         ymin, ymax = ax.get_ylim()
         xmin, xmax = ax.get_xlim()
-        xx = [xmin,xmax]
+        xx = [xmin, xmax]
         # Mouse should be within 2% of line.
         self.epsilon = np.diff(xx) * 0.02
 
@@ -66,19 +67,19 @@ class _rfsPlotBuilder(object):
 
         x1 = xx[0] + start_sel * np.diff(xx)
         dx = width_sel * np.diff(xx)
-        rect = patches.Rectangle((x1, ymin), dx, ymax-ymin, alpha=0.4,fc='y')
+        rect = patches.Rectangle((x1, ymin), dx, ymax-ymin, alpha=0.4, fc='y')
         ax.add_patch(rect)
 
         # ax position rect [left, bottom, width, height] in fractions of figure
         # width and height.
         # checkbutton showing stiffness or damping
-        buttonax = fig.add_axes([0.8, 0.02, 0.15, 0.06]) #, fc='white')
+        buttonax = fig.add_axes([0.8, 0.02, 0.15, 0.06])  # , fc='white')
         button = CheckButtons(buttonax, ('Damping',), (False,))
         button.on_clicked(self.checkbox_clicked)
 
         # set slider
         sliderax = fig.add_axes([0.1, 0.02, 0.6, 0.03], fc='white')
-        slider = Slider(sliderax, 'Tol', 0, 1.0, valinit= 0.05)
+        slider = Slider(sliderax, 'Tol', 0, 1.0, valinit=0.05)
         slider.on_changed(self.slider_update)
         slider.drawon = True
 
@@ -143,7 +144,8 @@ class _rfsPlotBuilder(object):
             return True
 
     def button_press_callback(self, event):
-        if self.check_rect(event) is False: return
+        if self.check_rect(event) is False:
+            return
 
         # get line cursor is close to
         self.ind = self.get_ind(event)
@@ -156,7 +158,8 @@ class _rfsPlotBuilder(object):
         self.canvas.blit(self.axes.bbox)
 
     def button_release_callback(self, event):
-        if self.check_rect(event) is False: return
+        if self.check_rect(event) is False:
+            return
         self.ind = None
         # update graphs showing restoring force
         self.update_rfs()
@@ -167,7 +170,8 @@ class _rfsPlotBuilder(object):
 
     def motion_notify_callback(self, event):
         # Update the rect position while dragging/moving
-        if self.check_rect(event) is False: return
+        if self.check_rect(event) is False:
+            return
         if self.ind is None:
             return
 
@@ -180,7 +184,7 @@ class _rfsPlotBuilder(object):
             self.rect.set_width(w_rect - dx)
         elif self.ind == 'right':
             self.rect.set_width(x-x_rect)
-        else:  #move
+        else:  # move
             self.rect.set_x(x_rect + dx)
 
         self.canvas.restore_region(self.background)
@@ -192,7 +196,6 @@ class _rfsPlotBuilder(object):
         self.show_damped = not self.show_damped
         self.update_rfs()
         self.rect.figure.canvas.draw()
-
 
     def set_postion(self, x, width):
         self.rect.set_x(x)
@@ -208,40 +211,40 @@ class _rfsPlotBuilder(object):
         x2 = x1 + width
         xmin, xmax = self.axes.get_xlim()
         xx = [xmin, xmax]
-        self.idx1 = int(np.floor( self.rfs.ns * (x1 - xx[0]) / np.diff(xx)))
-        self.idx2 = int(np.ceil( self.rfs.ns * (x2 - xx[0]) / np.diff(xx)))
+        self.idx1 = int(np.floor(self.rfs.ns * (x1 - xx[0]) / np.diff(xx)))
+        self.idx2 = int(np.ceil(self.rfs.ns * (x2 - xx[0]) / np.diff(xx)))
 
         y, yd, ydd, y_tol, yd_tol, ydd_tol = self.rfs.update_sel(self.idx1,
                                                                  self.idx2,
                                                                  show_damped)
         self.ax3d.clear()
-        self.ax3d.plot(y,yd,-ydd, '.k', markersize=2)
-        self.ax3d.plot(y_tol,yd_tol,-ydd_tol, '.r', markersize=10)
-        #self.ax3d.set_zlim([-5,5])
+        self.ax3d.plot(y, yd, -ydd, '.k', markersize=2)
+        self.ax3d.plot(y_tol, yd_tol, -ydd_tol, '.r', markersize=10)
+        # self.ax3d.set_zlim([-5,5])
 
         self.ax3d.set_title("Restoring force surface")
         self.ax3d.set_xlabel('Displacement (m)')
         self.ax3d.set_ylabel('Velocity (m/s)')
         self.ax3d.set_zlabel('-Acceleration (m/s²)')
-        self.ax3d.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+        self.ax3d.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
 
         self.ax2d.clear()
         if show_damped:
-            self.ax2d.plot(yd_tol,-ydd_tol, '.k', markersize=8)
+            self.ax2d.plot(yd_tol, -ydd_tol, '.k', markersize=8)
             self.ax2d.set_title('Damping curve')
             self.ax2d.set_xlabel('Rel. velocity (m/s)')
         else:
-            self.ax2d.plot(y_tol,-ydd_tol, '.k', markersize=8)
+            self.ax2d.plot(y_tol, -ydd_tol, '.k', markersize=8)
             self.ax2d.set_title('Stiffness curve')
             self.ax2d.set_xlabel('Rel. displacement (m)')
-        self.ax2d.axhline(y=0, ls='--', lw='0.5',color='k')
-        self.ax2d.axvline(x=0, ls='--', lw='0.5',color='k')
+        self.ax2d.axhline(y=0, ls='--', lw='0.5', color='k')
+        self.ax2d.axvline(x=0, ls='--', lw='0.5', color='k')
         self.ax2d.set_ylabel('-Acceleration (m/s²)')
-        self.ax2d.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+        self.ax2d.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
 
 
 class RFS():
-    def __init__(self, signal, dof=0, show_damped = False):
+    def __init__(self, signal, dof=0, show_damped=False):
         """ Show a Restoring Force Surface, which gives a visual idea of the
         type of nonlinearity(if any)
 
@@ -269,18 +272,18 @@ class RFS():
         self.tol_slice = 1e-2
         self.signal = signal
 
-        y = signal.y  #[dofs,:]
-        yd = signal.yd  #[dofs,:]
+        y = signal.y  # [dofs,:]
+        yd = signal.yd  # [dofs,:]
         if len(dof) == 1:
             # connected to ground
-            self.y = y[dof[0],:]  #.squeeze()
-            self.yd = yd[dof[0],:]  #.squeeze()
+            self.y = y[dof[0], :]  # .squeeze()
+            self.yd = yd[dof[0], :]  # .squeeze()
         else:
             # connected to another dof
-            self.y = y[dof[0],:] - y[dof[1],:]
-            self.yd = yd[dof[0],:] - yd[dof[1],:]
+            self.y = y[dof[0], :] - y[dof[1], :]
+            self.yd = yd[dof[0], :] - yd[dof[1], :]
 
-        self.ydd = signal.ydd[dof[0],:]
+        self.ydd = signal.ydd[dof[0], :]
 
     def update_sel(self, id0, id1=-1, show_damped=False):
         """ Update RFS for the given selection
@@ -290,16 +293,16 @@ class RFS():
         id0/id1 : int
             index start/end for the selection
         """
-        #t = self.t( id0:di1 );
+        # t = self.t( id0:di1 );
         y = self.y[id0:id1]
         yd = self.yd[id0:id1]
         ydd = self.ydd[id0:id1]
 
         if show_damped:
-            tol =  self.tol_slice * max( np.abs(y))
+            tol = self.tol_slice * max(np.abs(y))
             ind_tol = np.where(np.abs(y) < tol)
         else:
-            tol =  self.tol_slice * max( np.abs(yd))
+            tol = self.tol_slice * max(np.abs(yd))
             ind_tol = np.where(np.abs(yd) < tol)
         y_tol = y[ind_tol]
         yd_tol = yd[ind_tol]

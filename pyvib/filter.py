@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from scipy import signal
 from scipy import integrate as sp_integrate
+from scipy import signal
 
 
-def integrate(ddy,fs, lowcut=None, highcut=None, order=3, isnumeric=False):
+def integrate(ddy, fs, lowcut=None, highcut=None, order=3, isnumeric=False):
     """Integrate acceleration to get velocity and displacement.
 
     Numerical integration is prone to low-frequency problems.
@@ -52,8 +52,8 @@ def integrate(ddy,fs, lowcut=None, highcut=None, order=3, isnumeric=False):
     """
     import matplotlib.pyplot as plt
     if isnumeric:
-        dy = sp_integrate.cumtrapz(ddy,initial=0)/fs
-        y = sp_integrate.cumtrapz(dy,initial=0)/fs
+        dy = sp_integrate.cumtrapz(ddy, initial=0)/fs
+        y = sp_integrate.cumtrapz(dy, initial=0)/fs
     else:
         # nyquist freq
         fn = 0.5 * fs
@@ -63,7 +63,6 @@ def integrate(ddy,fs, lowcut=None, highcut=None, order=3, isnumeric=False):
         elif lowcut <= 0:
             raise ValueError('Lowcut frequency is 0 or lower', lowcut, fn)
 
-
         # Normalized cutoff freqs
         highcut = highcut / fn
         lowcut = lowcut / fn
@@ -71,14 +70,15 @@ def integrate(ddy,fs, lowcut=None, highcut=None, order=3, isnumeric=False):
         b, a = signal.butter(order, highcut, btype='lowpass')
         ddy = signal.filtfilt(b, a, ddy)
 
-        dy = sp_integrate.cumtrapz(ddy,initial=0)/fs
-        y = sp_integrate.cumtrapz(dy,initial=0)/fs
+        dy = sp_integrate.cumtrapz(ddy, initial=0)/fs
+        y = sp_integrate.cumtrapz(dy, initial=0)/fs
 
         b, a = signal.butter(order, lowcut, btype='highpass')
         dy = signal.filtfilt(b, a, dy)
         y = signal.filtfilt(b, a, y)
 
     return y, dy
+
 
 def differentiate(y, fs, order=3, cutoff=0.5, isnumeric=False):
     """ Differentiate y twice to get vel and acc
@@ -119,10 +119,10 @@ def differentiate(y, fs, order=3, cutoff=0.5, isnumeric=False):
         # Use filtfilt to apply the filter:
         y = signal.filtfilt(b, a, y)
 
-    #sampling frequency
+    # sampling frequency
     # fs = 1./dt
     dt = 1/fs
-    nyq_freq= fs/2
+    nyq_freq = fs/2
 
     #w, gd = signal.group_delay((b, a))
 
@@ -149,7 +149,7 @@ def differentiate(y, fs, order=3, cutoff=0.5, isnumeric=False):
     for i in range(len(dy)-4):
         dy[i+2] = 1/dt * b_diff.dot(y[i:i+5])
     #dy = signal.filtfilt(b, a, dy)
-    for i in range(2,len(dy)-8):
+    for i in range(2, len(dy)-8):
         ddy[i+2] = 1/dt * b_diff.dot(dy[i:i+5])
     #dyd = signal.filtfilt(b, a, ddy)
 
@@ -166,7 +166,7 @@ def differentiate(y, fs, order=3, cutoff=0.5, isnumeric=False):
     return dy, ddy
 
 
-def resample(y,fs_in, fs_out, cutoff, order = 3, isnumeric=False):
+def resample(y, fs_in, fs_out, cutoff, order=3, isnumeric=False):
     """Downsampling can be done like this:
 
     Parameters:
@@ -213,23 +213,25 @@ def resample(y,fs_in, fs_out, cutoff, order = 3, isnumeric=False):
         raise ValueError('Cutoff frequency is higher than nyquist frequency of \
         the resampled signal', cutoff, nyq)
 
-    normal_cutoff =  cutoff / nyq * fs_out/fs_in
+    normal_cutoff = cutoff / nyq * fs_out/fs_in
     b, a = signal.butter(order, normal_cutoff, 'lowpass')
     y = signal.filtfilt(b, a, y)
 
-    import scipy, math
+    import scipy
+    import math
     R = math.ceil(fs_in/fs_out)
     pad_size = math.ceil(float(y.size)/R)*R - y.size
     y_padded = np.append(y, np.zeros(pad_size)*np.NaN)
-    y_out = scipy.nanmean(y.reshape(-1,R), axis=1)
+    y_out = scipy.nanmean(y.reshape(-1, R), axis=1)
     fs_out = fs_in/R
-    print('filter',R, fs_in, fs_out,len(y_out),len(y),len(y_padded))
+    print('filter', R, fs_in, fs_out, len(y_out), len(y), len(y_padded))
 
     # n_outsamples = int(round(len(y) * fs_out/fs_in))
     # y_out = signal.resample(y, n_outsamples)
 
-    t_out = np.arange(0,len(y_out))/fs_out
+    t_out = np.arange(0, len(y_out))/fs_out
     return t_out, y_out
+
 
 """
 Test:

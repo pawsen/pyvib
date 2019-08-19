@@ -104,6 +104,7 @@ def lsce(frf, f, low_lim, nmax, fs, additional_timepoints=0):
 
     return sr_list
 
+
 def lsce_reconstruction(n, f, sr, vr, irf, two_sided_frf=False):
     """Reconstruction of the least-squares complex exponential (CE) method.
 
@@ -141,7 +142,7 @@ def lsce_reconstruction(n, f, sr, vr, irf, two_sided_frf=False):
 
     for i in range(no):
         for jk in range(l):
-            h[i, jk] = np.real(np.sum(a[i,:]*np.exp(sr*jk*dt)))
+            h[i, jk] = np.real(np.sum(a[i, :]*np.exp(sr*jk*dt)))
 
     return a, h
 
@@ -207,7 +208,7 @@ def lsfd(lambdak, f, frf):
     hri = hri.reshape(ni*no, 2*n)
 
     # Compute the modal constants (residuals) and upper and lower residuals
-    uv = lstsq(bcri.T,hri.T)[0]
+    uv = lstsq(bcri.T, hri.T)[0]
 
     # Reshape 2D results to 3D
     uv = uv.T.reshape(ni, no, 2*nmodes+4)
@@ -225,9 +226,10 @@ def lsfd(lambdak, f, frf):
 
     # Reconstructed FRF matrix
     h = uv @ bcri
-    h = h[:,:,:n] + 1j*h[:,:,n:]
+    h = h[:, :, :n] + 1j*h[:, :, n:]
 
     return h, a, lr, ur
+
 
 def lscf(frf, low_lim, n, fs):
     """LSCF - Least-Squares Complex frequency domain method
@@ -346,6 +348,7 @@ def lscf(frf, low_lim, n, fs):
 
     return sr_list
 
+
 def remove_redundant(omega, xi, prec=1e-3):
     """Remove the redundant values of frequency and damping vectors
     (due to the complex conjugate eigenvalues)
@@ -357,20 +360,21 @@ def remove_redundant(omega, xi, prec=1e-3):
 
     """
     N = len(omega)
-    test_omega = np.zeros((N,N), dtype=int)
-    for i in range(1,N):
-        for j in range(0,i):
+    test_omega = np.zeros((N, N), dtype=int)
+    for i in range(1, N):
+        for j in range(0, i):
             if np.abs((omega[i] - omega[j])) < prec:
-                test_omega[i,j] = 1
+                test_omega[i, j] = 1
             else:
-                test_omega[i,j] = 0
+                test_omega[i, j] = 0
     test = np.zeros(N, dtype=int)
-    for i in range(0,N):
-        test[i] = np.sum(test_omega[i,:])
+    for i in range(0, N):
+        test[i] = np.sum(test_omega[i, :])
 
     omega_mod = omega[np.where(test < 1)]
     xi_mod = xi[np.where(test < 1)]
     return omega_mod, xi_mod
+
 
 def irfft_adjusted_lower_limit(x, low_lim, indices):
     """
@@ -391,6 +395,7 @@ def irfft_adjusted_lower_limit(x, low_lim, indices):
     a = (irfft(x, n=nf)[:, indices]) * nf
     b = (irfft(x[:, :low_lim], n=nf)[:, indices]) * nf
     return a - b
+
 
 def stabilization(sd, fmin=0, fmax=np.inf, tol_freq=1, tol_damping=5,
                   tol_mode=0.98, macchoice='complex'):
@@ -555,8 +560,8 @@ def frf_mkc(M, K, fmin, fmax, fres, C=None, idof=None, odof=None):
 
     mat = np.zeros((n1, n2, F+1), dtype=complex)
     for k in range(F+1):
-        mat[...,k] = solve(((1j*2*np.pi*freq[k] * np.eye(2*n) - a)).T,
-                           c[odof].T).T @ b[:,idof]
+        mat[..., k] = solve(((1j*2*np.pi*freq[k] * np.eye(2*n) - a)).T,
+                            c[odof].T).T @ b[:, idof]
 
     # Map to right index.
     H = np.zeros((n1, n2, F+1), dtype=complex)
@@ -564,9 +569,10 @@ def frf_mkc(M, K, fmin, fmax, fres, C=None, idof=None, odof=None):
         il = odof[i]
         for j in range(n1):
             ic = odof[j]
-            H[il,ic] = np.squeeze(mat[i,j,:]).T
+            H[il, ic] = np.squeeze(mat[i, j, :]).T
 
     return freq, H
+
 
 def modal_mkc(M, K, C=None, neigs=6):
     """Calculate natural frequencies, damping ratios and mode shapes.
@@ -616,7 +622,7 @@ def modal_mkc(M, K, C=None, neigs=6):
         return sd
 
     # Damping is proportional or zero, eigenvectors are real
-    egval, egvec = eig(K,M)
+    egval, egvec = eig(K, M)
     lda = np.real(egval)
     idx = np.argsort(lda)
     lda = lda[idx]
@@ -627,7 +633,7 @@ def modal_mkc(M, K, C=None, neigs=6):
     nmodes = realmode.shape[0]
     for i in range(nmodes):
         realmode[i] = realmode[i] / norm(realmode[i])
-        if realmode[i,0] < 0:
+        if realmode[i, 0] < 0:
             realmode[i] = -realmode[i]
 
     zeta = []
@@ -641,6 +647,7 @@ def modal_mkc(M, K, C=None, neigs=6):
         'realmode': realmode,
     }
     return sd
+
 
 def modal_ac(A, C=None):
     """Calculate eigenvalues and modes from state space matrices A and C
@@ -699,7 +706,7 @@ def modal_ac(A, C=None):
     nmodes = realmode.shape[0]
     for i in range(nmodes):
         realmode[i] = realmode[i] / norm(realmode[i])
-        if realmode[i,0] < 0:
+        if realmode[i, 0] < 0:
             realmode[i] = -realmode[i]
 
     sd = {
@@ -710,6 +717,7 @@ def modal_ac(A, C=None):
         'realmode': realmode,
     }
     return sd
+
 
 def _complex_freq_to_freq_and_damp(lda):
     # get eigenfrequencies and damping rations from eigenvalues
@@ -729,6 +737,7 @@ def _complex_freq_to_freq_and_damp(lda):
 
     return wn, wd, zeta
 
+
 def ModalAC(M1, M2):
     """Calculate MAC value for real valued mode shapes
 
@@ -745,9 +754,9 @@ def ModalAC(M1, M2):
         MAC value in range [0-1]. 1 is perfect fit.
     """
     if M1.ndim != 2:
-        M1 = M1.reshape(-1,M1.shape[0])
+        M1 = M1.reshape(-1, M1.shape[0])
     if M2.ndim != 2:
-        M2 = M2.reshape(-1,M2.shape[0])
+        M2 = M2.reshape(-1, M2.shape[0])
 
     nmodes1 = M1.shape[0]
     nmodes2 = M2.shape[0]
@@ -758,9 +767,10 @@ def ModalAC(M1, M2):
         for j in range(nmodes2):
             num = M1[i].dot(M2[j])
             den = norm(M1[i]) * norm(M2[j])
-            MAC[i,j] = (num/den)**2
+            MAC[i, j] = (num/den)**2
 
     return MAC
+
 
 def ModalACX(M1, M2):
     """Calculate MACX value for complex valued mode shapes
@@ -778,9 +788,9 @@ def ModalACX(M1, M2):
         MAC value in range [0-1]. 1 is perfect fit.
     """
     if M1.ndim != 2:
-        M1 = M1.reshape(-1,M1.shape[0])
+        M1 = M1.reshape(-1, M1.shape[0])
     if M2.ndim != 2:
-        M2 = M2.reshape(-1,M2.shape[0])
+        M2 = M2.reshape(-1, M2.shape[0])
 
     nmodes1 = M1.shape[0]
     nmodes2 = M2.shape[0]
@@ -788,13 +798,14 @@ def ModalACX(M1, M2):
     MACX = np.zeros((nmodes1, nmodes2))
     for i in range(nmodes1):
         for j in range(nmodes2):
-            num = (np.abs(np.vdot(M1[i],M2[j])) + np.abs(M1[i] @ M2[j]))**2
-            den = np.real(np.vdot(M1[i],M1[i]) + np.abs(M1[i] @ M1[i])) * \
-                  np.real(np.vdot(M2[j],M2[j]) + np.abs(M2[j] @ M2[j]))
+            num = (np.abs(np.vdot(M1[i], M2[j])) + np.abs(M1[i] @ M2[j]))**2
+            den = np.real(np.vdot(M1[i], M1[i]) + np.abs(M1[i] @ M1[i])) * \
+                np.real(np.vdot(M2[j], M2[j]) + np.abs(M2[j] @ M2[j]))
 
-            MACX[i,j] = num / den
+            MACX[i, j] = num / den
 
     return MACX
+
 
 class EMA():
     """Experimental modal analysis
@@ -834,11 +845,11 @@ class EMA():
         for pole in self.lda:
             fn, _, zeta = _complex_freq_to_freq_and_damp(pole)
             fn, zeta = remove_redundant(fn, zeta, 1e-3)
-            sr.append({'wn':fn,
+            sr.append({'wn': fn,
                        'zeta': zeta,
                        'cpxmode': None,
                        'realmode': None,
-            })
+                       })
         self.sr = sr
         return sr
 
@@ -846,7 +857,7 @@ class EMA():
                       tol_mode=0.98, macchoice='None'):
 
         nmax = len(self.sda)
-        nlist = np.arange(1,nmax+1)*2
+        nlist = np.arange(1, nmax+1)*2
         self.sd = stabilization(self.sd, nlist, fmin, fmax, tol_freq,
                                 tol_damping, tol_mode, macchoice)
 

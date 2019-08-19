@@ -7,13 +7,14 @@ from copy import deepcopy
 import numpy as np
 from numpy.fft import fft
 from scipy.optimize import least_squares
+from scipy.signal import StateSpace as spStateSpace
 from scipy.signal.lti_conversion import abcd_normalize
 from scipy.signal.ltisys import dlsim
-from scipy.signal import StateSpace as spStateSpace
 
 from .common import lm, mmul_weight, weightfcn
 from .lti_conversion import discrete2cont, ss2phys
 from .modal import modal_ac
+
 
 def _atleast_2d_or_none(arg):
     if arg is not None:
@@ -40,7 +41,7 @@ class StateSpace():
         # flag = False
         if len(system) == 1:  # TODO fix and isinstance(system[0], StateSpace):
             sys = system[0]
-            #if (isinstance(sys, StateSpace) or 
+            # if (isinstance(sys, StateSpace) or
             #    isinstance(sys, spStateSpace)):
             sys = sys.A, sys.B, sys.C, sys.D
 
@@ -121,6 +122,7 @@ class StateSpace():
             The state-space system that is to be copied
         """
         if len(system) == 1 and isinstance(system[0], StateSpace):
+            system = system[0]
             A, B, C, D, dt = (system.A, system.B, system.C, system.D, system.dt)
         elif len(system) == 4:
             A, B, C, D = system
@@ -142,10 +144,10 @@ class StateSpace():
 
     def extract(self, x0):
         n, m, p = self.n, self.m, self.p
-        A = x0.flat[:n**2].reshape((n,n))
-        B = x0.flat[n**2 + np.r_[:n*m]].reshape((n,m))
-        C = x0.flat[n**2+n*m + np.r_[:p*n]].reshape((p,n))
-        D = x0.flat[n*(p+m+n):].reshape((p,m))
+        A = x0.flat[:n**2].reshape((n, n))
+        B = x0.flat[n**2 + np.r_[:n*m]].reshape((n, m))
+        C = x0.flat[n**2+n*m + np.r_[:p*n]].reshape((p, n))
+        D = x0.flat[n*(p+m+n):].reshape((p, m))
         return A, B, C, D
 
     def flatten(self):
@@ -180,7 +182,8 @@ class StateSpace():
             self.idx_remtrans = np.s_[:ns]
 
         if T2 is not None:
-            self.without_T2, NT = remove_transient_indices_nonperiodic(T2,ns,self.p)
+            self.without_T2, NT = remove_transient_indices_nonperiodic(
+                T2, ns, self.p)
         else:
             self.without_T2 = np.s_[:ns]
 
@@ -229,7 +232,7 @@ class StateSpace():
     def to_cont(self, method='zoh', alpha=None):
         """convert to cont. time. Only A and B changes for zoh method"""
         return discrete2cont(self.A, self.B, self.C, self.D, self.dt,
-                          method=method, alpha=alpha)
+                             method=method, alpha=alpha)
 
     @property
     def modal(self, update=False):
@@ -247,6 +250,7 @@ class StateSpace():
             self.to_cont()
         return ss2phys(self.Ac, self.Bc, self.C)
 
+
 class NonlinearStateSpace(StateSpace):
     def __init__(self, *system, **kwargs):
         """Initialize the state space lti/dlti system."""
@@ -257,7 +261,7 @@ class NonlinearStateSpace(StateSpace):
         if len(system) == 6:
             E, F = system[4:6]
             sys = system[0:4]
-        super().__init__(*sys,**kwargs)
+        super().__init__(*sys, **kwargs)
         self.E, self.F = E, F
 
     def __repr__(self):
@@ -303,6 +307,7 @@ class NonlinearStateSpace(StateSpace):
 
     def _copy(self, *system):
         if len(system) == 1 and isinstance(system[0], NonlinearStateSpace):
+            system = system[0]
             A, B, C, D, E, F, dt = (system.A, system.B, system.C, system.D,
                                     system.E, system.F, system.dt)
         elif len(system) == 6:
@@ -320,8 +325,8 @@ class NonlinearStateSpace(StateSpace):
         self.Ac, Bcext, *_ = \
             discrete2cont(self.A, Bext, self.C, Dext, self.dt,
                           method=method, alpha=alpha)
-        self.Bc = Bcext[:,:self.m]
-        self.Ec = Bcext[:,self.m:]
+        self.Bc = Bcext[:, :self.m]
+        self.Ec = Bcext[:, self.m:]
 
     @property
     def weight(self):
@@ -347,10 +352,10 @@ class NonlinearStateSpace(StateSpace):
 
         E = self.E
         F = self.F
-        A = x0.flat[:n**2].reshape((n,n))
-        B = x0.flat[n**2 + np.r_[:n*m]].reshape((n,m))
-        C = x0.flat[n**2+n*m + np.r_[:p*n]].reshape((p,n))
-        D = x0.flat[n*(p+m+n) + np.r_[:p*m]].reshape((p,m))
+        A = x0.flat[:n**2].reshape((n, n))
+        B = x0.flat[n**2 + np.r_[:n*m]].reshape((n, m))
+        C = x0.flat[n**2+n*m + np.r_[:p*n]].reshape((p, n))
+        D = x0.flat[n*(p+m+n) + np.r_[:p*m]].reshape((p, m))
         E.flat[xact] = x0.flat[n*(p+m+n)+p*m + np.r_[:ne]]
         F.flat[yact] = x0.flat[n*(p+m+n)+p*m+ne + np.r_[:nf]]
         return A, B, C, D, E, F
@@ -373,12 +378,12 @@ class NonlinearStateSpace(StateSpace):
         x0[n*(p+m+n)+p*m+ne + np.r_[:nf]] = self.F.flat[yact]
         return x0
 
+
 class StateSpaceIdent():
     def __init__(self):
         self._weight = None
         if not hasattr(self, '_cost_normalize'):
             self._cost_normalize = 1
-
 
     def cost(self, x0=None, weight=False):
         if weight is True:
@@ -398,21 +403,21 @@ class StateSpaceIdent():
         self.freq_weight = True
         if weight is False:
             self.freq_weight = False
-            
-        if isinstance(self,NonlinearStateSpace) and not self.freq_weight:
+
+        if isinstance(self, NonlinearStateSpace) and not self.freq_weight:
             # HACK. We want the cost function to show as rms. Ideally optimize
             # took a signal to use for optimizing in. For now this will do
-            nt =  self.signal.ym.size  # (nt*p)
+            nt = self.signal.ym.size  # (nt*p)
             self._cost_normalize = lambda x: np.sqrt(x/nt)
-        if isinstance(self,NonlinearStateSpace) and self.freq_weight:
-            # should be weighted mean square cost function (divided by 2*NFD*R*p) 
+        if isinstance(self, NonlinearStateSpace) and self.freq_weight:
+            # should be weighted mean square cost function (divided by 2*NFD*R*p)
             pass
 
         if info:
             print(f'\nStarting {self.__class__.__name__} optimization')
 
         x0 = self.flatten()
-        kwargs = {'weight':weight}
+        kwargs = {'weight': weight}
         if method is None:
             res = lm(fun=self.costfcn, x0=x0, jac=self.jacobian, info=info,
                      nmax=nmax, lamb=lamb, ftol=ftol, xtol=xtol, gtol=gtol,
@@ -464,6 +469,7 @@ class StateSpaceIdent():
         self._copy(*self.extract(ss))
         return err_rms
 
+
 def costfcn_time(x0, system, weight=False):
     """Compute the vector of residuals such that the function to mimimize is
 
@@ -495,14 +501,14 @@ def costfcn_time(x0, system, weight=False):
 #    else:
     ym = system.signal.ym
 
-    err = y_mod - ym  #[without_T2, :p] - system.signal.ym[without_T2]
+    err = y_mod - ym  # [without_T2, :p] - system.signal.ym[without_T2]
     if weight is not False and system.freq_weight:
-        err = err.reshape((npp,R,p),order='F').swapaxes(1,2)
+        err = err.reshape((npp, R, p), order='F').swapaxes(1, 2)
         # Select only the positive half of the spectrum
         err = fft(err, axis=0)[:nfd]
         err = mmul_weight(err, weight)
         #cost = np.vdot(err, err).real
-        err = err.swapaxes(1,2).ravel(order='F')
+        err = err.swapaxes(1, 2).ravel(order='F')
         err_w = np.hstack((err.real.squeeze(), err.imag.squeeze()))
     elif weight is not False:
         # TODO time domain weighting. Does not work
@@ -515,7 +521,8 @@ def costfcn_time(x0, system, weight=False):
 
     return err_w
 
-def transient_indices_periodic(T1,N):
+
+def transient_indices_periodic(T1, N):
     """Computes indices for transient handling of periodic signals.
 
     Computes the indices to be used with a vector u of length N that contains
@@ -573,7 +580,7 @@ def transient_indices_periodic(T1,N):
         indices = np.array([], dtype=int)
         for i in range(len(T1)-1):
             trans = T1[i+1] - 1 - np.mod(np.arange(ntrans)[::-1], T1[i+1]-T1[i])
-            normal = np.arange(T1[i],T1[i+1])
+            normal = np.arange(T1[i], T1[i+1])
             indices = np.hstack((indices, trans, normal))
     else:
         # No transient points => output = all indices of the signal
@@ -581,7 +588,8 @@ def transient_indices_periodic(T1,N):
 
     return indices
 
-def remove_transient_indices_periodic(T1,N,p):
+
+def remove_transient_indices_periodic(T1, N, p):
     """Computes indices for transient handling for periodic signals after
     filtering
 
@@ -692,7 +700,8 @@ def remove_transient_indices_periodic(T1,N,p):
 
     return indices
 
-def remove_transient_indices_nonperiodic(T2,N,p):
+
+def remove_transient_indices_nonperiodic(T2, N, p):
     """Remove transients from arbitrary data.
 
     Computes the indices to be used with a (N,p) matrix containing p output

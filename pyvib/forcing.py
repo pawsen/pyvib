@@ -20,6 +20,8 @@ def force(A, f, ndof, fdof):
     return wrapped_func
 
 """
+
+
 def sinesweep(amp, fs, f1, f2, vsweep, nrep=1, inctype='lin', t0=0):
     """Do a linear or logarithmic sinus sweep excitation.
 
@@ -60,7 +62,7 @@ def sinesweep(amp, fs, f1, f2, vsweep, nrep=1, inctype='lin', t0=0):
     # linspace. This means that we might not include tend in t (which would be
     # the case with linspace), but for that we get the desired fs.
     ns = np.floor((tend-t0)*fs)
-    t = np.arange(0,ns+1)/fs
+    t = np.arange(0, ns+1)/fs
     # t = np.linspace(t0, tend, ns +1)
 
     # Instantaneous frequency
@@ -70,7 +72,8 @@ def sinesweep(amp, fs, f1, f2, vsweep, nrep=1, inctype='lin', t0=0):
         finst = f1 + vsweep/60*(t-t0)
 
     if inctype == 'log':
-        psi = (2*np.pi * f1*60/(np.log(2)*vsweep)) * (2**(vsweep*((t-t0)/60)) - 1)
+        psi = (2*np.pi * f1*60/(np.log(2)*vsweep)) * \
+            (2**(vsweep*((t-t0)/60)) - 1)
     else:
         psi = 2*np.pi * f1*(t-t0) + 2*np.pi*vsweep/60*(t-t0)**2 / 2
 
@@ -79,13 +82,14 @@ def sinesweep(amp, fs, f1, f2, vsweep, nrep=1, inctype='lin', t0=0):
         # repeat signal: 1 2 3 -> 1 2 3 1 2 3 1 2 3
         u = np.tile(u, nrep)
         # prevent the first number from reoccurring: 1 2 3 -> 1 2 3 2 3 2 3
-        idx = np.arange(1,nrep) * (ns+1)
+        idx = np.arange(1, nrep) * (ns+1)
         u = np.delete(u, idx)
         t = np.arange(0, ns*nrep+1) / fs
 
     return u, t, finst
 
-def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full',rms=1, ngroup=4):
+
+def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full', rms=1, ngroup=4):
     """Random periodic excitation
 
     Generates R realizations of a zero-mean random phase multisine with
@@ -163,7 +167,7 @@ def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full',rms=1, ngro
         raise AssertionError(f"fs should be {fs} >= {2*f2}")
     if not N >= 2*f2:
         raise AssertionError('N should be higher than Nyquist freq, '
-                             'N >= 2*f2. N={}, f2={}'.format(N,f2))
+                             'N >= 2*f2. N={}, f2={}'.format(N, f2))
 
     VALID_LINES = {'full', 'odd', 'oddrandom'}
     if isinstance(lines, str) and lines.lower() in VALID_LINES:
@@ -189,12 +193,12 @@ def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full',rms=1, ngro
             pass  # do nothing
         elif lines == 'odd':
             # remove even lines
-            if np.remainder(_lines[0],2):  # lines[0] is even
+            if np.remainder(_lines[0], 2):  # lines[0] is even
                 _lines = _lines[::2]
             else:
                 _lines = _lines[1::2]
         elif lines == 'oddrandom':
-            if np.remainder(_lines[0],2):
+            if np.remainder(_lines[0], 2):
                 _lines = _lines[::2]
             else:
                 _lines = _lines[1::2]
@@ -207,16 +211,16 @@ def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full',rms=1, ngro
 
     nlines = len(_lines)
     # multisine generation - frequency domain implementation
-    U = np.zeros((R,N),dtype=complex)
+    U = np.zeros((R, N), dtype=complex)
     # excite the selected frequencies
-    U[:,_lines] = np.exp(2j*np.pi*np.random.rand(R,nlines))
+    U[:, _lines] = np.exp(2j*np.pi*np.random.rand(R, nlines))
 
-    u = 2*np.real(ifft(U,axis=1))  # go to time domain
+    u = 2*np.real(ifft(U, axis=1))  # go to time domain
     u = rms*u / np.std(u[0])  # rescale to obtain desired rms/std
 
     # Because the ifft is for [0,2*pi[, there is no need to remove any point
     # when the generated signal is repeated.
-    u = np.tile(u,(1,P))  # generate P periods
+    u = np.tile(u, (1, P))  # generate P periods
     freq = np.arange(N)/N*fs
 
     return u, _lines, freq
@@ -249,6 +253,7 @@ def sineForce(A, f=None, omega=None, t=None, fs=None, ns=None, phi_f=0):
     u = A * np.sin(omega*t + phi)
 
     return u, t
+
 
 def toMDOF(u, ndof, fdof):
 

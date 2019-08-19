@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from scipy.linalg import solve, svd, norm, lstsq, inv
+from scipy.linalg import inv, lstsq, norm, solve, svd
+
 from ..forcing import sineForce, toMDOF
+
 
 class Bifurcation(object):
     def __init__(self, hb, fdofs, nldofs_ext, marker, stype, max_it_secant=10,
@@ -25,9 +27,10 @@ class Bifurcation(object):
         self.marker = marker
         self.stype = stype
 
+
 class Fold(Bifurcation):
-    def __init__(self,*args, **kwargs):
-        kwargs.update({'marker':'s', 'stype':'fold'})
+    def __init__(self, *args, **kwargs):
+        kwargs.update({'marker': 's', 'stype': 'fold'})
         super().__init__(*args, **kwargs)
 
     def detect(self, omega, z, A, J_z, force, it_cont):
@@ -73,7 +76,7 @@ class Fold(Bifurcation):
             J_ext = extended_jacobian(self.hb, omega, z, A, B, M, w,
                                       self.fdofs, self.nldofs_ext, 'LP2')
 
-            dNR, *_ = lstsq(J_ext[:,:nz+1], -F)
+            dNR, *_ = lstsq(J_ext[:, :nz+1], -F)
             z = z + dNR[:nz]
             omega = omega + dNR[nz]
 
@@ -89,7 +92,8 @@ class Fold(Bifurcation):
             Gq0 = null_approx(G, 'LP2')
             Gp0 = null_approx(G.T, 'LP2')
             if Gq0 is False or Gp0 is False:
-                it = max_it_secant + 1; break
+                it = max_it_secant + 1
+                break
             h = self.hb.state_sys(z, A, force)
 
             F, M, w = extended_state_sys(h, G, Gp0, Gq0, 'LP2')
@@ -107,9 +111,10 @@ class Fold(Bifurcation):
             self.isbif = True
             return omega, z
 
+
 class NS(Bifurcation):
-    def __init__(self,*args, **kwargs):
-        kwargs.update({'marker':'d', 'stype':'NS'})
+    def __init__(self, *args, **kwargs):
+        kwargs.update({'marker': 'd', 'stype': 'NS'})
         super().__init__(*args, **kwargs)
 
     def detect(self, omega, z, A, J_z, force, it_cont):
@@ -137,8 +142,8 @@ class NS(Bifurcation):
         print('-----> Detecting NS bifurcation...')
         B = self.hb.hills.stability(omega, J_z)
         B_tilde, vr, idx = self.hb.hills.vec(B)
-        vr_inv = inv(vr)[idx,:]
-        vr = vr[:,idx]
+        vr_inv = inv(vr)[idx, :]
+        vr = vr[:, idx]
 
         G = bialtprod(np.diag(B_tilde))
         Gq0 = null_approx(G, 'NS')
@@ -155,7 +160,7 @@ class NS(Bifurcation):
                                       self.fdofs, self.nldofs_ext, 'NS', vr,
                                       vr_inv)
 
-            dNR, *_ = lstsq(J_ext[:,:nz+1], -F)
+            dNR, *_ = lstsq(J_ext[:, :nz+1], -F)
             z = z + dNR[:nz]
             omega = omega + dNR[nz]
             omega2 = omega/nu
@@ -167,14 +172,15 @@ class NS(Bifurcation):
 
             B = self.hb.hills.stability(omega, J_z)
             B_tilde, vr, idx = self.hb.hills.vec(B)
-            vr_inv = inv(vr)[idx,:]
-            vr = vr[:,idx]
+            vr_inv = inv(vr)[idx, :]
+            vr = vr[:, idx]
 
             G = bialtprod(np.diag(B_tilde))
             Gq0 = null_approx(G, 'NS')
             Gp0 = null_approx(G.T, 'NS')
             if Gq0 is False or Gp0 is False:
-                it = max_it_secant + 1; break
+                it = max_it_secant + 1
+                break
             h = self.hb.state_sys(z, A, force)
             F, M, w = extended_state_sys(h, G, Gp0, Gq0, 'NS')
             print('Test function = {}'.format(norm(F) / norm(z)))
@@ -204,9 +210,10 @@ class NS(Bifurcation):
         n_mu = Gdiag_real[Gdiag_real > 0]
         return len(n_mu)
 
+
 class BP(Bifurcation):
     def __init__(self, default_dir=True, *args, **kwargs):
-        kwargs.update({'marker':'^', 'stype':'BP'})
+        kwargs.update({'marker': '^', 'stype': 'BP'})
         super().__init__(*args, **kwargs)
         self.branch_switch = False
         self.default_dir = default_dir
@@ -234,11 +241,11 @@ class BP(Bifurcation):
 
         print('-----> Detecting BP bifurcation...')
         G = np.vstack((
-            np.hstack((Jz, Jw[:,None])),
+            np.hstack((Jz, Jw[:, None])),
             tangent))
 
-        Gq0 = null_approx(G,'BP')
-        Gp0 = null_approx(G.T,'BP')
+        Gq0 = null_approx(G, 'BP')
+        Gp0 = null_approx(G.T, 'BP')
         if Gq0 is False or Gp0 is False:
             return omega, z
         h = self.hb.state_sys(z, A, force)
@@ -250,7 +257,7 @@ class BP(Bifurcation):
             J_ext = extended_jacobian(self.hb, omega, z, A, G, M, w,
                                       self.fdofs, self.nldofs_ext, 'BP',
                                       tangent=tangent)
-            dNR, *_ = lstsq(J_ext[:,:nz+1], -F)
+            dNR, *_ = lstsq(J_ext[:, :nz+1], -F)
             z = z + dNR[:nz]
             omega = omega + dNR[nz]
             omega2 = omega/nu
@@ -263,12 +270,13 @@ class BP(Bifurcation):
 
             Jw = self.hb.hjac_omega(omega, z)
             G = np.vstack((
-                np.hstack((A0, Jw[:,None])),
+                np.hstack((A0, Jw[:, None])),
                 tangent))
-            Gq0 = null_approx(G,'BP')
-            Gp0 = null_approx(G.T,'BP')
+            Gq0 = null_approx(G, 'BP')
+            Gp0 = null_approx(G.T, 'BP')
             if Gq0 is False or Gp0 is False:
-                it = max_it_secant + 1; break
+                it = max_it_secant + 1
+                break
             h = self.hb.state_sys(z, A, force)
             F, M, w = extended_state_sys(h, G, Gp0, Gq0, 'NS')
             print('Test function = {}'.format(norm(F) / norm(z)))
@@ -298,41 +306,41 @@ class BP(Bifurcation):
         #Jz = self.hb.hjac(z, A)
         #Jw = self.hb.hjac_omega(omega, z)
         J_BP = np.vstack((
-            np.hstack((Jz, Jw[:,None])),
+            np.hstack((Jz, Jw[:, None])),
             tangent))
-        phi1, *_ = lstsq(J_BP, np.append(np.zeros(nz),1))
+        phi1, *_ = lstsq(J_BP, np.append(np.zeros(nz), 1))
         phi1 = phi1 / norm(phi1)
-        psi = null_approx(Jz.T,'BP')
-        phi2 = null_approx(J_BP,'BP')
+        psi = null_approx(Jz.T, 'BP')
+        phi2 = null_approx(J_BP, 'BP')
         beta2 = 1
 
         # perturbation
         # First pertubate z, then omega
         eps = 1e-8
-        hess = np.empty((nz,nz+1,nz+1))
+        hess = np.empty((nz, nz+1, nz+1))
         # TODO make parallel for loop
         for i in range(nz):
             z_pert = z.copy()
             z_pert[i] = z_pert[i] + eps
             Jz_pert = self.hb.hjac(z_pert, A)
             Jw_pert = self.hb.hjac_omega(omega, z_pert)
-            hess[...,i] = np.hstack(((Jz_pert - Jz)/eps,
-                                     (Jw_pert - Jw)[:,None]))
+            hess[..., i] = np.hstack(((Jz_pert - Jz)/eps,
+                                      (Jw_pert - Jw)[:, None]))
         omega_pert = omega + eps
         omega2_pert = omega/nu
         A = self.hb.assembleA(omega2_pert)
         Jz_pert = self.hb.hjac(z, A)
         Jw_pert = self.hb.hjac_omega(omega_pert, z)
-        hess[...,nz] = np.hstack(((Jz_pert - Jz)/eps,
-                                  (Jw_pert - Jw)[:,None]))
+        hess[..., nz] = np.hstack(((Jz_pert - Jz)/eps,
+                                   (Jw_pert - Jw)[:, None]))
 
         multi_prod12 = np.zeros(nz)
         multi_prod22 = np.zeros(nz)
         for i in range(nz):
             for j in range(nz+1):
                 for k in range(nz+1):
-                    multi_prod12[i] += hess[i,j,k] * phi1[j] * phi2[k]
-                    multi_prod12[i] += hess[i,j,k] * phi2[j] * phi2[k]
+                    multi_prod12[i] += hess[i, j, k] * phi1[j] * phi2[k]
+                    multi_prod12[i] += hess[i, j, k] * phi2[j] * phi2[k]
 
         c12 = psi.T @ multi_prod12
         c22 = psi.T @ multi_prod22
@@ -379,7 +387,7 @@ class BP(Bifurcation):
         tt_bp2 = self.V0
         omegas = [omega + tangent[nz], omega + tt_bp2[nz], omega - tt_bp2[nz]]
         zs = [z + tangent[:nz], z + tt_bp2[:nz], z - tt_bp2[:nz]]
-        xmax = [self.xdisp(wp,zp,dof) for wp,zp in zip(omegas, zs)]
+        xmax = [self.xdisp(wp, zp, dof) for wp, zp in zip(omegas, zs)]
 
         w0 = omega
         anim.plot_tangent(w0, xamp, omegas, xmax, show)
@@ -393,33 +401,33 @@ class BP(Bifurcation):
         freq = np.arange(nt//2) * omega/2/np.pi
 
         t = self.hb.assemblet(omega)
-        an = np.zeros((nh+1,n))
-        bn = np.zeros((nh,n))
-        x = np.zeros((n,nt))
+        an = np.zeros((nh+1, n))
+        bn = np.zeros((nh, n))
+        x = np.zeros((n, nt))
         an[0] = z[:n]
-        x = np.outer(an[0][:,None], np.ones(nt))
+        x = np.outer(an[0][:, None], np.ones(nt))
 
         ind = n
         for i in range(nh):
             for j in range(n):
-                an[i+1,j] = z[ind+j]
-                bn[i,j] = z[ind+n+j]
+                an[i+1, j] = z[ind+j]
+                bn[i, j] = z[ind+n+j]
             ind += 2 * n
 
-        for i in range(1,nh+1):
+        for i in range(1, nh+1):
             for j in range(n):
-                x[j,:] += an[i,j]*np.sin(2*np.pi*t*freq[i]) + \
-                             bn[i-1,j]*np.cos(2*np.pi*t*freq[i])
+                x[j, :] += an[i, j]*np.sin(2*np.pi*t*freq[i]) + \
+                    bn[i-1, j]*np.cos(2*np.pi*t*freq[i])
 
         # velocity
-        xd = np.zeros((n,len(t)))
+        xd = np.zeros((n, len(t)))
         for i in range(nh+1):
             for j in range(n):
-                xd[j,:] += \
-                    2*np.pi*freq[i]*an[i,j]*np.cos(2*np.pi*t*freq[i]) - \
-                    2*np.pi*freq[i]*bn[i-1,j]*np.sin(2*np.pi*t*freq[i])
+                xd[j, :] += \
+                    2*np.pi*freq[i]*an[i, j]*np.cos(2*np.pi*t*freq[i]) - \
+                    2*np.pi*freq[i]*bn[i-1, j]*np.sin(2*np.pi*t*freq[i])
 
-        xmax = np.max(x[dof,:])*self.hb.scale_x
+        xmax = np.max(x[dof, :])*self.hb.scale_x
         return xmax
 
 
@@ -429,6 +437,7 @@ def extended_state_sys(h, G, p0, q0, bif_type):
     """
 
     return bordered_system(G, p0, q0, bif_type, h)
+
 
 def test_func(G, p0, q0, bif_type):
     """
@@ -444,6 +453,7 @@ def test_func(G, p0, q0, bif_type):
     p0[0] = 1
 
     return bordered_system(G, p0, q0, bif_type)
+
 
 def bordered_system(G, p0, q0, bif_type, h=None):
     """Calculate the bordered system
@@ -477,18 +487,19 @@ def bordered_system(G, p0, q0, bif_type, h=None):
     # Bordered system, eq. 1.65
     nG = G.shape[1]
     M = np.vstack((
-        np.hstack((G, p0[:,None])),
+        np.hstack((G, p0[:, None])),
         np.hstack((q0, 0))
     ))
 
-    wg = solve(M, np.append(np.zeros(nG),1)).real
+    wg = solve(M, np.append(np.zeros(nG), 1)).real
     w = wg[:nG]
     g = wg[nG]
     if h is None:
         return g, q0, p0
-    h = np.append(h,g)
+    h = np.append(h, g)
 
     return h, M, w
+
 
 def null_approx(A, bif_type):
     """Compute the nullspace of A depending on the type of bifurcation"""
@@ -502,7 +513,7 @@ def null_approx(A, bif_type):
         # make sure there's only one vector and it is the one corresponding to
         # the lowest singular value. Maybe atol should be lower, ie. 5e-3?
         if nullvec.ndim > 1:
-            nullvec = nullvec[:,-1]
+            nullvec = nullvec[:, -1]
         return nullvec
     else:
         if not np.all(A == np.diag(np.diagonal(A))):
@@ -515,6 +526,7 @@ def null_approx(A, bif_type):
         nullvec[idx] = 1
 
         return nullvec
+
 
 def nullspace(A, atol=1e-13, rtol=0):
     """Compute an approximate basis for the nullspace of A.
@@ -566,6 +578,7 @@ def nullspace(A, atol=1e-13, rtol=0):
 
     return ns
 
+
 def bialtprod(A):
     """Calculate bialternate product of A
 
@@ -585,11 +598,11 @@ def bialtprod(A):
 
     n = A.shape[0]
     m = n*(n-1)//2
-    B = np.zeros((m,m), dtype=A.dtype)
+    B = np.zeros((m, m), dtype=A.dtype)
 
     Z = np.ones(m, dtype=int)
     # init indexes
-    init = np.outer(np.arange(1,n), Z)
+    init = np.outer(np.arange(1, n), Z)
     init2 = np.outer(np.ones(n-1, dtype=int), np.arange(m))
     idx = np.where(init2 < init)
     init = init[idx]
@@ -604,7 +617,7 @@ def bialtprod(A):
     sq = s == q
 
     # part1
-    idx = np.where(r==q)
+    idx = np.where(r == q)
     idx2 = _sub2ind(n, p[idx], s[idx])
     B[idx] = -A.flat[idx2]
 
@@ -626,14 +639,16 @@ def bialtprod(A):
     B[idx] = A.flat[idx2]
 
     # part5
-    idx = np.where(s==p)
+    idx = np.where(s == p)
     idx2 = _sub2ind(n, q[idx], r[idx])
     B[idx] = -A.flat[idx2]
 
     return B
 
+
 def _sub2ind(n, row, col):
     return row*n + col
+
 
 def extended_jacobian(self, omega, z, A, B, M, w, fdofs, nldofs_ext, bif_type,
                       vr=None, vr_inv=None, tangent=None):
@@ -672,7 +687,7 @@ def extended_jacobian(self, omega, z, A, B, M, w, fdofs, nldofs_ext, bif_type,
     Jf = -btronc
 
     # transposed of bordered system. eq. 1.72
-    vh = solve(M.T, np.append(np.zeros(nG),1))
+    vh = solve(M.T, np.append(np.zeros(nG), 1))
     v = vh[:nG]
 
     # derivative of g wrt α(z, ω, f ) is, due to the bordered system,
@@ -691,7 +706,7 @@ def extended_jacobian(self, omega, z, A, B, M, w, fdofs, nldofs_ext, bif_type,
         J_part[i] = np.real(Jg_A)
 
     # TODO Rewrite so we DONT pass 0.
-    hess = hessian(self, omega, z, A, B, 0,'omega', bif_type, vr, vr_inv,
+    hess = hessian(self, omega, z, A, B, 0, 'omega', bif_type, vr, vr_inv,
                    tangent)
     Jg_p1 = - v @ hess @ w
 
@@ -700,7 +715,7 @@ def extended_jacobian(self, omega, z, A, B, M, w, fdofs, nldofs_ext, bif_type,
 
     J_part = np.append(J_part, (np.real(Jg_p1), np.real(Jg_p2)))
     J = np.vstack((
-        np.hstack((Jz, Jw[:,None], Jf[:,None])),
+        np.hstack((Jz, Jw[:, None], Jf[:, None])),
         J_part
     ))
 
@@ -752,8 +767,8 @@ def hessian(self, omega, z, A, B, idx, gtype, bif_type, vr=None, vr_inv=None,
             return (Jz_pert/scale_x - B) / eps
         elif bif_type == 'BP':
             Jw_pert = self.hjac_omega(omega, z_pert)
-            dG_dalpha = (np.vstack((np.hstack((Jz_pert/scale_x, Jw_pert[:,None])),
-                                   tangent)) - B) / eps
+            dG_dalpha = (np.vstack((np.hstack((Jz_pert/scale_x, Jw_pert[:, None])),
+                                    tangent)) - B) / eps
             return dG_dalpha
         elif bif_type == 'NS':
             B_pert = self.hills.stability(omega, Jz_pert)
@@ -777,8 +792,8 @@ def hessian(self, omega, z, A, B, idx, gtype, bif_type, vr=None, vr_inv=None,
             return (Jz_pert/scale_x - B) / eps
         elif bif_type == 'BP':
             Jw_pert = self.hjac_omega(omega_pert, z)
-            dG_dalpha = (np.vstack((np.hstack((Jz_pert/scale_x, Jw_pert[:,None])),
-                                   tangent)) - B) / eps
+            dG_dalpha = (np.vstack((np.hstack((Jz_pert/scale_x, Jw_pert[:, None])),
+                                    tangent)) - B) / eps
             return dG_dalpha
         elif bif_type == 'NS':
             B_pert = self.hills.stability(omega_pert, Jz_pert)
@@ -794,5 +809,5 @@ def hessian(self, omega, z, A, B, idx, gtype, bif_type, vr=None, vr_inv=None,
             # size of bialternate product
             n = self.n*2
             m = n*(n-1)//2
-            hess = np.zeros((m,m))
+            hess = np.zeros((m, m))
         return hess

@@ -14,6 +14,8 @@ from .statespace import NonlinearStateSpace, StateSpaceIdent
 PNLSS -- a collection of classes and functions for modeling nonlinear
 linear state space systems.
 """
+
+
 class PNLSS(NonlinearStateSpace, StateSpaceIdent):
     def __init__(self, *system, **kwargs):
         if len(system) == 1:  # and isinstance(system[0], StateSpace):
@@ -28,8 +30,8 @@ class PNLSS(NonlinearStateSpace, StateSpaceIdent):
             sys = system
 
         super().__init__(*sys, **kwargs)
-        self.xpowers = np.empty(shape=(0,self.m+self.n))
-        self.ypowers = np.empty(shape=(0,self.m+self.n))
+        self.xpowers = np.empty(shape=(0, self.m+self.n))
+        self.ypowers = np.empty(shape=(0, self.m+self.n))
         self.xactive = np.array([], dtype=int)
         self.yactive = np.array([], dtype=int)
         self.n_nx = len(self.xactive)
@@ -54,7 +56,8 @@ class PNLSS(NonlinearStateSpace, StateSpaceIdent):
             self.xpowers = combinations(self.n+self.m, degree)
             self.n_nx = self.xpowers.shape[0]
             self.xactive = \
-                select_active(self.xstructure,self.n,self.m,self.n,self.xdegree)
+                select_active(self.xstructure, self.n,
+                              self.m, self.n, self.xdegree)
             if self.E.size == 0:
                 self.E = np.zeros((self.n, self.n_nx))
             # Compute the derivatives of the polynomials zeta and e
@@ -65,7 +68,8 @@ class PNLSS(NonlinearStateSpace, StateSpaceIdent):
             self.ypowers = combinations(self.n+self.m, degree)
             self.n_ny = self.ypowers.shape[0]
             self.yactive = \
-                select_active(self.ystructure,self.n,self.m,self.p,self.ydegree)
+                select_active(self.ystructure, self.n,
+                              self.m, self.p, self.ydegree)
             if self.F.size == 0:
                 self.F = np.zeros((self.p, self.n_ny))
             self.yd_powers, self.yd_coeff = poly_deriv(self.ypowers)
@@ -136,25 +140,26 @@ def dnlsim(system, u, t=None, x0=None):
     for i in range(0, out_samples - 1):
         # State equation x(t+1) = A*x(t) + B*u(t) + E*zeta(x(t),u(t))
         zeta_t = np.prod(np.outer(repmat_x, np.hstack((xout[i], u_dt[i])))
-                         **system.xpowers, axis=1)
+                         ** system.xpowers, axis=1)
         xout[i+1, :] = (np.dot(system.A, xout[i, :]) +
                         np.dot(system.B, u_dt[i, :]) +
                         np.dot(system.E, zeta_t))
         # Output equation y(t) = C*x(t) + D*u(t) + F*eta(x(t),u(t))
         eta_t = np.prod(np.outer(repmat_y, np.hstack((xout[i], u_dt[i])))
-                        **system.ypowers, axis=1)
+                        ** system.ypowers, axis=1)
         yout[i, :] = (np.dot(system.C, xout[i, :]) +
                       np.dot(system.D, u_dt[i, :]) +
                       np.dot(system.F, eta_t))
 
     # Last point
     eta_t = np.prod(np.outer(repmat_y, np.hstack((xout[-1], u_dt[-1])))
-                    **system.ypowers, axis=1)
+                    ** system.ypowers, axis=1)
     yout[-1, :] = (np.dot(system.C, xout[-1, :]) +
                    np.dot(system.D, u_dt[-1, :]) +
                    np.dot(system.F, eta_t))
 
     return tout, yout, xout
+
 
 def element_jacobian(samples, A_Edwdx, C_Fdwdx, active):
     """Compute Jacobian of the output y wrt. A, B, and E
@@ -190,7 +195,7 @@ def element_jacobian(samples, A_Edwdx, C_Fdwdx, active):
     N, npar = samples.shape
     nactive = len(active)  # Number of active parameters in A, B, or E
 
-    out = np.zeros((p,N,nactive))
+    out = np.zeros((p, N, nactive))
     for k, activ in enumerate(active):
         # Which column in A, B, or E matrix
         j = np.mod(activ, npar)
@@ -198,18 +203,19 @@ def element_jacobian(samples, A_Edwdx, C_Fdwdx, active):
         i = (activ-j)//npar
         # partial derivative of x(0) wrt. A(i,j), B(i,j), or E(i,j)
         Jprev = np.zeros(n)
-        for t in range(1,N):
+        for t in range(1, N):
             # Calculate state update alternative state-space model at time t
             # Terms in alternative states at time t-1
-            J = A_Edwdx[:,:,t-1] @ Jprev
+            J = A_Edwdx[:, :, t-1] @ Jprev
             # Term in alternative input at time t-1
-            J[i] += samples[t-1,j]
+            J[i] += samples[t-1, j]
             # Calculate output alternative state-space model at time t
-            out[:,t,k] = C_Fdwdx[:,:,t] @ J
+            out[:, t, k] = C_Fdwdx[:, :, t] @ J
             # Update previous state alternative state-space model
             Jprev = J
 
     return out
+
 
 def jacobian(x0, system, weight=False):
     """Compute the Jacobians of a steady state nonlinear state-space model
@@ -243,21 +249,21 @@ def jacobian(x0, system, weight=False):
 
     # E∂ₓζ + A(n,n,NT)
     if E.size == 0:
-        A_EdwxIdx = np.zeros(shape=(*A.shape,n_trans))
+        A_EdwxIdx = np.zeros(shape=(*A.shape, n_trans))
     else:
-        A_EdwxIdx = multEdwdx(contrib,system.xd_powers,np.squeeze(system.xd_coeff),
-                          E,n)
-    A_EdwxIdx += A[...,None]
+        A_EdwxIdx = multEdwdx(contrib, system.xd_powers, np.squeeze(system.xd_coeff),
+                              E, n)
+    A_EdwxIdx += A[..., None]
     zeta = nl_terms(contrib, system.xpowers).T  # (NT,n_nx)
 
     # F∂ₓη  (p,n,NT)
     if F.size == 0:
-        FdwyIdx = np.zeros(shape=(*C.shape,n_trans))
+        FdwyIdx = np.zeros(shape=(*C.shape, n_trans))
     else:
-        FdwyIdx = multEdwdx(contrib,system.yd_powers,np.squeeze(system.yd_coeff),
-                  F,n)
+        FdwyIdx = multEdwdx(contrib, system.yd_powers, np.squeeze(system.yd_coeff),
+                            F, n)
     # Add C to F∂ₓη for all samples at once
-    FdwyIdx += C[...,None]
+    FdwyIdx += C[..., None]
     eta = nl_terms(contrib, system.ypowers).T  # (NT,n_ny)
 
     # calculate jacobians wrt state space matrices
@@ -265,26 +271,26 @@ def jacobian(x0, system, weight=False):
     JD = np.kron(np.eye(p), system.signal.um)  # (p*N, p*m)
     if system.yactive.size:
         JF = np.kron(np.eye(p), eta)  # Jacobian wrt all elements in F
-        JF = JF[:,system.yactive]  # all active elements in F. (p*NT,nactiveF)
+        JF = JF[:, system.yactive]  # all active elements in F. (p*NT,nactiveF)
         JF = JF[system.idx_remtrans]  # (p*N,nactiveF)
     else:
-        JF = np.array([]).reshape(p*N,0)
+        JF = np.array([]).reshape(p*N, 0)
 
     # calculate Jacobian by filtering an alternative state-space model
     JA = element_jacobian(x_trans, A_EdwxIdx, FdwyIdx, np.arange(n**2))
-    JA = JA.transpose((1,0,2)).reshape((p*n_trans, n**2))
+    JA = JA.transpose((1, 0, 2)).reshape((p*n_trans, n**2))
     JA = JA[system.idx_remtrans]  # (p*N,n**2)
 
     JB = element_jacobian(u_trans, A_EdwxIdx, FdwyIdx, np.arange(n*m))
-    JB = JB.transpose((1,0,2)).reshape((p*n_trans, n*m))
+    JB = JB.transpose((1, 0, 2)).reshape((p*n_trans, n*m))
     JB = JB[system.idx_remtrans]  # (p*N,n*m)
 
     if system.xactive.size:
         JE = element_jacobian(zeta, A_EdwxIdx, FdwyIdx, system.xactive)
-        JE = JE.transpose((1,0,2)).reshape((p*n_trans, len(system.xactive)))
+        JE = JE.transpose((1, 0, 2)).reshape((p*n_trans, len(system.xactive)))
         JE = JE[system.idx_remtrans]  # (p*N,nactiveE)
     else:
-        JE = np.array([]).reshape(p*N,0)
+        JE = np.array([]).reshape(p*N, 0)
 
     jac = np.hstack((JA, JB, JC, JD, JE, JF))[without_T2]
     npar = jac.shape[1]
@@ -292,17 +298,17 @@ def jacobian(x0, system, weight=False):
     # add frequency weighting
     if weight is not False and system.freq_weight:
         # (p*ns, npar) -> (Npp,R,p,npar) -> (Npp,p,R,npar) -> (Npp,p,R*npar)
-        jac = jac.reshape((npp,R,p,npar),
-                          order='F').swapaxes(1,2).reshape((-1,p,R*npar),
-                                                           order='F')
+        jac = jac.reshape((npp, R, p, npar),
+                          order='F').swapaxes(1, 2).reshape((-1, p, R*npar),
+                                                            order='F')
         # select only the positive half of the spectrum
         jac = fft(jac, axis=0)[:nfd]
         jac = mmul_weight(jac, weight)
         # (nfd,p,R*npar) -> (nfd,p,R,npar) -> (nfd,R,p,npar) -> (nfd*R*p,npar)
-        jac = jac.reshape((-1,p,R,npar),
-                          order='F').swapaxes(1,2).reshape((-1,npar), order='F')
+        jac = jac.reshape((-1, p, R, npar),
+                          order='F').swapaxes(1, 2).reshape((-1, npar), order='F')
 
-        J = np.empty((2*nfd*R*p,npar))
+        J = np.empty((2*nfd*R*p, npar))
         J[:nfd*R*p] = jac.real
         J[nfd*R*p:] = jac.imag
     elif weight is not False:

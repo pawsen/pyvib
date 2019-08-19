@@ -175,7 +175,7 @@ class Pnl(Nonlinear_Element):
 
         return dfdx
 
-    def df(self,x, u):
+    def df(self, x, u):
         """Example of generic derivative. Could be like this:
 
         def dfdy(...):

@@ -33,6 +33,7 @@ def is_stable(A, domain='z'):
         raise ValueError(f"{domain} wrong. Use 's' or 'z'")
     return True
 
+
 def ss2phys(A, B, C, D=None):
     """Calculate state space matrices in physical domain using a similarity
     transform T
@@ -49,6 +50,7 @@ def ss2phys(A, B, C, D=None):
     A = solve(T.T, (T @ A).T).T  # (A = T*A*T^-1)
     B = T @ B
     return A, B, C, T
+
 
 def ss2frf(A, B, C, D, freq):
     """Compute frequency response function from state-space parameters
@@ -68,8 +70,10 @@ def ss2frf(A, B, C, D, freq):
     z = np.exp(2j*np.pi*freq)
     In = np.eye(*A.shape)
     # Use broadcasting. Much faster than for loop.
-    Gss = C @ solve((z*In[...,None] - A[...,None]).transpose((2,0,1)), B[None]) + D
+    Gss = C @ solve((z*In[..., None] - A[..., None]
+                     ).transpose((2, 0, 1)), B[None]) + D
     return Gss
+
 
 def discrete2cont(ad, bd, cd, dd, dt, method='zoh', alpha=None):
     """Convert linear system from discrete to continuous time-domain.

@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from scipy.linalg import eigvals, inv, block_diag, eig
+from scipy.linalg import block_diag, eig, eigvals, inv
 from scipy.sparse.csgraph import reverse_cuthill_mckee
+
 
 class Hills(object):
     """Estimate Floquet multipliers from Hills method.
@@ -45,23 +46,23 @@ class Hills(object):
         M_inv = inv(M0)
         Delta2_inv = M_inv
 
-        for i in range(1,NH+1):
+        for i in range(1, NH+1):
             Delta2 = block_diag(Delta2, M0, M0)
             Delta2_inv = block_diag(Delta2_inv, M_inv, M_inv)
 
         # eq. 45
         b2 = np.vstack((
             np.hstack((Delta2, np.zeros(Delta2.shape))),
-            np.hstack((np.zeros(Delta2.shape), np.eye(Delta2.shape[0]))) ))
+            np.hstack((np.zeros(Delta2.shape), np.eye(Delta2.shape[0])))))
 
         b2_inv = - np.vstack((
             np.hstack((Delta2_inv, np.zeros(Delta2_inv.shape))),
-            np.hstack((np.zeros(Delta2_inv.shape), np.eye(Delta2.shape[0]))) ))
+            np.hstack((np.zeros(Delta2_inv.shape), np.eye(Delta2.shape[0])))))
 
         self.Delta2 = Delta2
         self.b2_inv = b2_inv
         self.hb = hb
-        #return Delta2, b2_inv
+        # return Delta2, b2_inv
 
     def stability(self, omega, J_z, it=None):
         """Calculate B, Hills matrix.
@@ -91,10 +92,10 @@ class Hills(object):
         omega2 = omega/nu
         # eq. 38
         Delta1 = C0
-        for i in range(1,NH+1):
+        for i in range(1, NH+1):
             blk = np.vstack((
                 np.hstack((C0, - 2*i * omega2/scale_t * M0)),
-                np.hstack((2*i * omega2/scale_t * M0, C0)) ))
+                np.hstack((2*i * omega2/scale_t * M0, C0))))
             Delta1 = block_diag(Delta1, blk)
 
         # eq. 45
@@ -103,7 +104,7 @@ class Hills(object):
         A2 = Delta2
         b1 = np.vstack((
             np.hstack((A1, A0)),
-            np.hstack((-np.eye(A0.shape[0]), np.zeros(A0.shape))) ))
+            np.hstack((-np.eye(A0.shape[0]), np.zeros(A0.shape)))))
 
         # eq. 46
         mat_B = b2_inv @ b1

@@ -4,11 +4,13 @@
 import numpy as np
 from scipy.special import comb
 
+
 """Routines for creating polynomial representation
 
 """
 
-def nl_terms(signal,power):
+
+def nl_terms(signal, power):
     # NB THIS ONE IS NOT NEEDED! DELETE SOON!
     """Construct polynomial terms.
 
@@ -60,14 +62,12 @@ def nl_terms(signal,power):
     N = signal.shape[1]
     # Number of terms
     nterms = power.shape[0]
-    out = np.empty((nterms,N))
+    out = np.empty((nterms, N))
     for i in range(nterms):
         # All samples of term i
-        out[i] = np.prod(signal**power.T[:,None,i], axis=0)
+        out[i] = np.prod(signal**power.T[:, None, i], axis=0)
 
     return out
-
-
 
 
 def poly_deriv(powers):
@@ -77,13 +77,13 @@ def poly_deriv(powers):
     d_coeff = powers
     n = powers.shape[1]
     #  Terms of the derivative
-    d_powers = np.repeat(powers[...,None],n, axis=2)
+    d_powers = np.repeat(powers[..., None], n, axis=2)
     for i in range(n):
         # Derivative w.r.t. variable i has one degree less in variable i than
         # original polynomial If original polynomial is constant w.r.t.
         # variable i, then the derivative is zero, but take abs to avoid a
         # power -1 (zero coefficient anyway)
-        d_powers[:,i,i] = np.abs(powers[:,i]-1)
+        d_powers[:, i, i] = np.abs(powers[:, i]-1)
 
         # TODO
         # This would be more correct, but is slower
@@ -165,17 +165,17 @@ def multEdwdx(signal, power, coeff, E, n):
     n_all, nt = signal.shape
     # n_out = number of rows in E; n_nx = number of monomials in w
     n_out, n_nx = E.shape
-    out = np.zeros((n_out,n,nt))
+    out = np.zeros((n_out, n, nt))
     # Loop over all signals x w.r.t. which derivatives are taken
     for k in range(n):
         # Repeat coefficients of derivative of w w.r.t. x_k
-        A = np.outer(coeff[:,k], np.ones(nt))
+        A = np.outer(coeff[:, k], np.ones(nt))
         for j in range(n_all):     # Loop over all signals x and u
             for i in range(n_nx):  # Loop over all monomials
                 # Derivative of monomial i wrt x_k
-                A[i,:] *= signal[j,:]**power[i,j,k]
+                A[i, :] *= signal[j, :]**power[i, j, k]
         # E times derivative of w wrt x_k
-        out[:,k,:] = np.matmul(E,A)
+        out[:, k, :] = np.matmul(E, A)
 
     return out
 
@@ -229,11 +229,11 @@ def combinations(n, degrees):
         ncomb += comb(n+degree-1, degree, exact=True)
 
     # List the exponents of each input in all monomials
-    monomials = np.zeros((ncomb,n),dtype=int)
+    monomials = np.zeros((ncomb, n), dtype=int)
     idx = 0  # Running index indicating the last used row in out
     for degree in degrees:
         # All combinations in homogeneous polynomial of degree
-        comb_i = hom_combinations(n,degree)
+        comb_i = hom_combinations(n, degree)
         ncomb_i = comb_i.shape[0]
         monomials[idx: idx+ncomb_i] = comb_i
         idx += ncomb_i
@@ -241,16 +241,16 @@ def combinations(n, degrees):
     return monomials
 
 
-def hom_combinations(n,degree):
+def hom_combinations(n, degree):
     """Lists the exponents of all possible terms in a homogeneous polynomial
     monomial representation, e.g. [1 2] represents x1*x2**2
-    
+
     Parameters
     ----------
     n: int
         Number of variables, eg x1, x2, ...
     degree: int
-    
+
     Return
     ------
     combinations: ndarray(ncomb,n)
@@ -264,34 +264,34 @@ def hom_combinations(n,degree):
     """
 
     # Number of combinations in homogeneous polynomial
-    ncomb = comb(n+degree-1,degree, exact=True)
+    ncomb = comb(n+degree-1, degree, exact=True)
     # Preallocating and start from all ones => x1*x1*x1
-    monomials = np.ones((ncomb,degree), dtype=int)
+    monomials = np.ones((ncomb, degree), dtype=int)
 
-    for i in range(1,ncomb):
+    for i in range(1, ncomb):
         monomials[i] = monomials[i-1].copy()
         j = degree-1  # Index indicating which factor to change
-        while monomials[i,j] == n:
+        while monomials[i, j] == n:
             # Try to increase the last factor, but if this is not possible,
             # look the previous one that can be increased
             j -= 1
         # Increase factor j wrt previous monomial, e.g. x1*x1*x1 -> x1*x1*x2
-        monomials[i,j] += 1
+        monomials[i, j] += 1
         # Monomial after x1*x1*xmax is x1*x2*x2, and not x1*x2*xmax
-        monomials[i,j+1:degree] = monomials[i,j]
+        monomials[i, j+1:degree] = monomials[i, j]
 
     # Exponents representation, e.g. [2, 1] represents x1^2*x2 = x1*x1*x2
-    combinations = np.zeros((ncomb,n), dtype=int)
+    combinations = np.zeros((ncomb, n), dtype=int)
     for i in range(ncomb):  # # Loop over all terms
         for j in range(n):  # # Loop over all inputs
             # Count the number of appearances of input j in monomial i. +1 for
             # zero index
-            combinations[i,j] = np.sum(monomials[i] == j+1)
+            combinations[i, j] = np.sum(monomials[i] == j+1)
 
     return combinations
 
 
-def select_active(structure,n,m,q,nx):
+def select_active(structure, n, m, q, nx):
     """Select active elements in E or F matrix.
 
     Select the active elements (i.e. those on which optimization will be done)
@@ -469,7 +469,7 @@ def select_active(structure,n,m,q,nx):
 
     """
     # All possible nonlinear terms of degrees nx in n+m inputs
-    combis = combinations(n+m,nx)
+    combis = combinations(n+m, nx)
     n_nl = combis.shape[0]  # Number of terms
 
     stype = {'diagonal', 'inputsonly', 'statesonly', 'nocrossprod', 'affine',
@@ -482,8 +482,8 @@ def select_active(structure,n,m,q,nx):
                              ' equation, not in output equation')
         # Find terms that consist of one state, say x_j, raised to a nonzero
         # power
-        active = np.where((np.sum(combis[:,:n] != 0,1) == 1) &
-                          (np.sum(combis[:,n:] != 0,1) == 0))[0]
+        active = np.where((np.sum(combis[:, :n] != 0, 1) == 1) &
+                          (np.sum(combis[:, n:] != 0, 1) == 0))[0]
         # Select these terms only for row j in the E matrix
         for i, item in enumerate(active):
             # Which state variable is raised to a nonzero power
@@ -492,27 +492,27 @@ def select_active(structure,n,m,q,nx):
             active[i] += (tmp)*n_nl
     elif structure == 'inputsonly':
         # Find terms where all states are raised to a zero power
-        active = np.where(np.sum(combis[:,:n] != 0,1) == 0)[0]
+        active = np.where(np.sum(combis[:, :n] != 0, 1) == 0)[0]
     elif structure == 'statesonly':
         # Find terms where all inputs are raised to a zero power
-        active = np.where(np.sum(combis[:,n:] != 0,1) == 0)[0]
+        active = np.where(np.sum(combis[:, n:] != 0, 1) == 0)[0]
     elif structure == 'nocrossprod':
         # Find terms where only one variable (state or input) is raised to a
         # nonzero power
-        active = np.where(np.sum(combis != 0,1) == 1)[0]
+        active = np.where(np.sum(combis != 0, 1) == 1)[0]
     elif structure == 'affine':
         # Find terms where only one state is raised to power one, and all
         # others to power zero. There are no conditions on the powers in the
         # input variables
-        active = np.where((np.sum(combis[:,:n] != 0,1) == 1) &
-                          (np.sum(combis[:,:n], 1) == 1))[0]
+        active = np.where((np.sum(combis[:, :n] != 0, 1) == 1) &
+                          (np.sum(combis[:, :n], 1) == 1))[0]
 
     elif structure == 'affinefull':
         # Find terms where at most one state is raised to power one, and
         # all others to power zero. There are no conditions on the powers
         # in the input variables
-        active = np.where((np.sum(combis[:,:n] != 0,1) <= 1) &
-                          (np.sum(combis[:,:n], 1) <= 1))[0]
+        active = np.where((np.sum(combis[:, :n] != 0, 1) <= 1) &
+                          (np.sum(combis[:, :n], 1) <= 1))[0]
     elif structure == 'full':
         # Select all terms in E/F matrix
         active = np.arange(q*n_nl)
@@ -522,13 +522,13 @@ def select_active(structure,n,m,q,nx):
     elif structure == 'nolastinput':
         if m > 0:
             # Find terms where last input is raised to power zero
-            active = np.where(combis[:,-1] == 0)[0]
+            active = np.where(combis[:, -1] == 0)[0]
         else:
             raise ValueError(f"There is no input for {structure}")
     else:
         # Check if one row in E is selected. Remember we use 0-based rows
         if (isinstance(structure, (int, np.integer)) and
-            structure in np.arange(n)):
+                structure in np.arange(n)):
             row_E = int(structure)
             active = row_E*n_nl + np.arange(n_nl)
         else:
@@ -536,12 +536,12 @@ def select_active(structure,n,m,q,nx):
                              f" or int specifying a row within 0-{n-1}")
 
     if structure in \
-       ('inputsonly','statesonly','nocrossprod','affine','affinefull',
-        'nolastinput'):
+       ('inputsonly', 'statesonly', 'nocrossprod', 'affine', 'affinefull',
+            'nolastinput'):
         # Select terms for all rows in E/F matrix
-        active = (np.tile(active[:,None], q) +
-                  np.tile(np.linspace(0,(q-1)*n_nl,q, dtype=int),
-                          (len(active),1))).ravel()
+        active = (np.tile(active[:, None], q) +
+                  np.tile(np.linspace(0, (q-1)*n_nl, q, dtype=int),
+                          (len(active), 1))).ravel()
 
     # Sort the active elements
     return np.sort(active)

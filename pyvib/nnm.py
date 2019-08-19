@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from scipy.linalg import solve, lstsq, norm, eigvals
+from scipy.linalg import eigvals, lstsq, norm, solve
 
-from .newmark import Newmark
 from .common import modal_properties_MKC
 from .helper.plotting import Anim
+from .newmark import Newmark
+
 
 class NNM():
     def __init__(self, M, K, nonlin, omega_min, omega_max, step=0.1,
@@ -14,7 +15,7 @@ class NNM():
                  opt_it_NR=3, max_it_NR=15, tol_NR=1e-6, scale=1,
                  max_it_cont=100, mode=0,
                  angle_max_beta=90, anim=True, loglevel=0,
-                 unit='Hz',sca=1/(2*np.pi)):
+                 unit='Hz', sca=1/(2*np.pi)):
         """Calculate NNM using the shooting method to calculate a periodic
         solution and then Pseudo-arclength to continue(follow) the
         solution/branch.
@@ -113,10 +114,10 @@ class NNM():
         n = len(X0)
 
         if self.anim:
-            par = {'title':'Frequency Energy plot (FEP)','xstr':'Log10(Energy) (J)',
-                   'ystr':'Frequency ({})'.format(self.unit),
-                   'yscale':self.sca}
-            anim = Anim(x=np.log10(self.energy_vec), y=self.omega_vec,**par)
+            par = {'title': 'Frequency Energy plot (FEP)', 'xstr': 'Log10(Energy) (J)',
+                   'ystr': 'Frequency ({})'.format(self.unit),
+                   'yscale': self.sca}
+            anim = Anim(x=np.log10(self.energy_vec), y=self.omega_vec, **par)
 
         if self.adaptive_stepsize:
             h = self.adaptive_h(h)
@@ -142,7 +143,7 @@ class NNM():
             # ∂H/∂z = Φ - I, where Φ is the sensitivity/monodromy matrix and
             # ∂H/∂T = g(z) is the state space system. pT=1 (chosen)
             if cvg is True:
-                A = PhiT[:,indcont] - II[:,indcont]
+                A = PhiT[:, indcont] - II[:, indcont]
                 fT = self.state_syst_cons(XT)
                 sol, *_ = lstsq(A, fT)
                 px = -sol
@@ -150,7 +151,7 @@ class NNM():
                     p_old = p
                     if self.adaptive_stepsize:
                         h = self.adaptive_h(h, it_NR, beta)
-                p = np.append(px,1)
+                p = np.append(px, 1)
                 p = h * p / norm(p)
                 if cont:
                     p = np.sign(p @ p_old) * p
@@ -190,10 +191,10 @@ class NNM():
             while(it_NR <= self.max_it_NR and H > self.tol_NR):
                 fT = self.state_syst_cons(XT)
                 As = np.vstack((
-                    np.hstack((PhiT[:,indcont] - II[:, indcont], fT[:,None])),
+                    np.hstack((PhiT[:, indcont] - II[:, indcont], fT[:, None])),
                     np.append(px, 1)
                 ))
-                bs = np.append(X0 - XT,0)
+                bs = np.append(X0 - XT, 0)
                 Ds, *_ = lstsq(As, bs)
                 X0[indcont] = X0[indcont] + Ds[:-1]
                 T = T + Ds[-1]
@@ -226,10 +227,11 @@ class NNM():
                 if it_w > 1:
                     X0_prev = self.X0_vec[-1][indcont]
                     T_prev = 2*np.pi / self.omega_vec[-1]
-                    v1 = np.append(X0[indcont],T) - np.append(X0_prev, T_prev)
+                    v1 = np.append(X0[indcont], T) - np.append(X0_prev, T_prev)
                     v2 = p
-                    beta = abs(np.arccos((v1 @ v2)/(norm(v1)*norm(v2))))*180/np.pi
-                    Drel = norm(v1 / np.append(X0[indcont],T))
+                    beta = abs(
+                        np.arccos((v1 @ v2)/(norm(v1)*norm(v2))))*180/np.pi
+                    Drel = norm(v1 / np.append(X0[indcont], T))
                     if(beta > self.betamax and Drel > 1e-3):
                         print('Angle condition is not fulfilled:'
                               'risk of branching switching.'
@@ -240,7 +242,7 @@ class NNM():
 
                 if cvg:
                     cont = True
-                    predict = np.append(X0_predict,w_predict)
+                    predict = np.append(X0_predict, w_predict)
                     self.append_sol(X0, ampl, w, beta, predict, PhiT)
                     print('  Energy: {:0.3e}  Stable: {}'.
                           format(self.energy_vec[-1], self.stab_vec[-1]))
@@ -271,10 +273,10 @@ class NNM():
             # result in all velocities being removed from the unknowns.
             fT = self.state_syst_cons(xT)
             A = np.vstack((
-                np.hstack((PhiT[:,indcont] - II[:, indcont], fT[:,None])),
+                np.hstack((PhiT[:, indcont] - II[:, indcont], fT[:, None])),
                 np.append(x0_in, 0)
             ))
-            b = np.append(x0 - xT,0)
+            b = np.append(x0 - xT, 0)
             Ds, *_ = lstsq(A, b)
 
             x0[indcont] = x0[indcont] + Ds[:-1]
@@ -303,8 +305,8 @@ class NNM():
     def monodromy_sa(self, X0, T):
 
         x, xd, xdd, PhiT, _ = self.numsim(X0, T)
-        XT = np.append(x[:,-1], xd[:,-1])
-        ampl = np.max(abs(x),axis=1)
+        XT = np.append(x[:, -1], xd[:, -1])
+        ampl = np.max(abs(x), axis=1)
 
         # if PhiT is empty, calculate it by pertubating finite difference.
         if len(PhiT) == 0:
@@ -315,7 +317,7 @@ class NNM():
             e_j = max(abs(min(err, emax)), emin)
 
             n = len(X0)
-            PhiT = np.empty((n,n))
+            PhiT = np.empty((n, n))
             for j in range(n):
                 dX0_j = np.zeros(n)
                 if X0[j] != 0:
@@ -327,7 +329,7 @@ class NNM():
                 X0_j = X0 + dX0_j
                 XT_j, *_ = self.numsim(X0_j, T)
 
-                PhiT[:,j] = (XT_j - XT) / dX0_j[j]
+                PhiT[:, j] = (XT_j - XT) / dX0_j[j]
 
         return XT, PhiT, ampl
 
@@ -366,7 +368,7 @@ class NNM():
         xd = X[n//2:n]
         El = 0.5 * x @ self.K @ x + \
             0.5 * xd @ self.M @ xd
-        Enl = self.nonlin.energy(x,xd)
+        Enl = self.nonlin.energy(x, xd)
         energy = El + Enl
 
         return energy.item()

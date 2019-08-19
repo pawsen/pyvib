@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy.fftpack import fft, ifft
-from .common import next_pow2, db
+
+from .common import db, next_pow2
+
 
 class WT():
     def __init__(self, signal):
@@ -30,11 +32,11 @@ class WT():
 
     def plot(self, fss=None, sca=1, **kwargs):
 
-         fig, ax = waveletPlot(self.finst, self.wtinst, self.time, self.freq,
-                               self.y, fss, sca, **kwargs)
-         self.fig = fig
-         self.ax = ax
-         return fig, ax
+        fig, ax = waveletPlot(self.finst, self.wtinst, self.time, self.freq,
+                              self.y, fss, sca, **kwargs)
+        self.fig = fig
+        self.ax = ax
+        return fig, ax
 
 
 def morletWT(x, fs, f1, f2, nf, f00, pad=0):
@@ -72,7 +74,7 @@ def morletWT(x, fs, f1, f2, nf, f00, pad=0):
     df = (f2 - f1) / nf
     freq = np.linspace(f1, f2, nf)
 
-    a = f00 / (f1 + np.outer(np.arange(nf),df))
+    a = f00 / (f1 + np.outer(np.arange(nf), df))
     na = len(a) - 1
 
     k = 2**pad
@@ -85,13 +87,13 @@ def morletWT(x, fs, f1, f2, nf, f00, pad=0):
     f = np.linspace(0, fs/2, N//2)
     omega = f*2*np.pi
 
-    filt = np.sqrt(2*a @ np.ones((1,N//2))) * \
-        np.exp(-0.5*(a @ omega[None,:] - 2*np.pi*f00)**2)
+    filt = np.sqrt(2*a @ np.ones((1, N//2))) * \
+        np.exp(-0.5*(a @ omega[None, :] - 2*np.pi*f00)**2)
     filt[np.isnan(filt)] = 0
 
     X = fft(x, N, axis=0)
-    X = np.conj(filt) * (np.ones((na+1,1)) @ X[None,:N//2])
-    y = np.zeros((na+1,N), dtype=complex)
+    X = np.conj(filt) * (np.ones((na+1, 1)) @ X[None, :N//2])
+    y = np.zeros((na+1, N), dtype=complex)
     for j in range(na+1):
         y[j] = ifft(X[j], N)
 
@@ -112,9 +114,9 @@ def morletWT(x, fs, f1, f2, nf, f00, pad=0):
 def waveletPlot(finst, wtinst, time, freq, y, fss=None, sca=1, **kwargs):
 
     if sca == 1:
-        unit =  ' (Hz)'
+        unit = ' (Hz)'
     else:
-        unit =  ' (rad/s)'
+        unit = ' (rad/s)'
 
     if fss is None:
         vx = time
@@ -134,7 +136,7 @@ def waveletPlot(finst, wtinst, time, freq, y, fss=None, sca=1, **kwargs):
     freq = freq[::n1]*sca
     vx = vx[::n2]
     finst = finst[::n2]
-    y = y[::n2,::n1]
+    y = y[::n2, ::n1]
 
     T, F = np.meshgrid(vx, freq)
     va = db(y)
@@ -156,12 +158,12 @@ def waveletPlot(finst, wtinst, time, freq, y, fss=None, sca=1, **kwargs):
 
     ax2 = fig.add_axes([0.9, 0.1, 0.03, 0.8])
     # obtain the colormap limits
-    vmin,vmax = cs.get_clim()
+    vmin, vmax = cs.get_clim()
     # Define a normalised scale
     cNorm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
     # Plot the colormap in the created axes
     cbar = mpl.colorbar.ColorbarBase(ax2, norm=cNorm, cmap=cmap)
-    fig.subplots_adjust(left=0.05,right=0.85)
+    fig.subplots_adjust(left=0.05, right=0.85)
 
     cbar.ax.set_ylabel('Amplitude (dB)')
     ax.set_xlabel(xstr)

@@ -3,7 +3,9 @@
 
 import numpy as np
 from scipy.sparse import coo_matrix
-from .interpolate import spline, piecewise_linear, piecewise_linear_der
+
+from .interpolate import piecewise_linear, piecewise_linear_der, spline
+
 
 class NL_force(object):
 
@@ -16,14 +18,14 @@ class NL_force(object):
             self.add(nls)
 
     def add(self, nls):
-            if not isinstance(nls, list):
-                nls = [nls]
-            for nl in nls:
-                self.nls.append(nl)
-                if nl.is_force:
-                    self.dnls_force.append(nl)
-                else:
-                    self.dnls_damp.append(nl)
+        if not isinstance(nls, list):
+            nls = [nls]
+        for nl in nls:
+            self.nls.append(nl)
+            if nl.is_force:
+                self.dnls_force.append(nl)
+            else:
+                self.dnls_damp.append(nl)
 
     def nldofs(self):
         # find nonlinear dofs
@@ -41,7 +43,6 @@ class NL_force(object):
         nldofs = np.asarray(list(set(nldofs)))
         return nldofs
 
-
     def force(self, x, xd):
 
         if x.ndim == 1:
@@ -54,7 +55,7 @@ class NL_force(object):
         for nl in self.nls:
             fnl = nl.compute(x, xd, fnl)
         # squeeze in case ns = 1
-        fnl = fnl[:ndof,:].squeeze()
+        fnl = fnl[:ndof, :].squeeze()
         return fnl
 
     def dforce(self, x, xd, is_force=True):
@@ -76,25 +77,25 @@ class NL_force(object):
                 dfnl = nl.dcompute(x, xd, dfnl)
 
         if ns == 1:
-            return dfnl[:ndof,:ndof].squeeze()
+            return dfnl[:ndof, :ndof].squeeze()
 
         # create sparse structure from dfnl
         # TODO: dont create dfnl in the first place...:)
         ind = np.arange(ns*(ndof+1))
         ind = np.delete(ind, np.s_[ndof::ndof+1])
         dfnl = dfnl[:ndof, ind]
-        dfnl = np.reshape(dfnl, (ndof**2,ns), order='F')
+        dfnl = np.reshape(dfnl, (ndof**2, ns), order='F')
         # dont ask...
         ind = np.outer(np.ones(ndof), np.arange(ndof)) * ns*ndof + \
             np.outer(np.arange(ndof), np.ones(ndof))
         ind = np.outer(ind.T, np.ones(ns)) + \
-            ns*ndof * np.outer(np.ones(ndof**2), np.arange(0,(ns-1)*ndof+1, ndof)) + \
+            ns*ndof * np.outer(np.ones(ndof**2), np.arange(0, (ns-1)*ndof+1, ndof)) + \
             ndof * np.outer(np.ones(ndof**2), np.arange(ns))
 
         ind = ind.ravel(order='F').astype('int')
 
-        #https://stackoverflow.com/questions/28995146/matlab-ind2sub-equivalent-in-python
-        arr = ns*ndof*np.array([1,1])
+        # https://stackoverflow.com/questions/28995146/matlab-ind2sub-equivalent-in-python
+        arr = ns*ndof*np.array([1, 1])
         ii, jj = np.unravel_index(ind, tuple(arr), order='F')
         dfnl_s = coo_matrix((dfnl.ravel(order='F'), (ii, jj)),
                             shape=(ndof*ns, ndof*ns)).tocsr()
@@ -119,10 +120,13 @@ class _NL_compute(object):
 
     def compute(self, x, fnl):
         pass
+
     def dcompute(self, x, fnl):
         pass
+
     def energy(self, x, fnl):
         pass
+
 
 class NL_polynomial(_NL_compute):
     """Calculate force contribution for polynomial nonlinear stiffness or
@@ -147,6 +151,7 @@ class NL_polynomial(_NL_compute):
             f_nl : ndarray (nbln, ns)
                 Nonlinear force
     """
+
     def __init__(self, inl, enl, knl, is_force=True):
         self.inl = inl
         self.enl = enl
@@ -163,9 +168,9 @@ class NL_polynomial(_NL_compute):
 
         for j in range(nbln):
             # connected from
-            i1 = inl[j,0]
+            i1 = inl[j, 0]
             # conencted to
-            i2 = inl[j,1]
+            i2 = inl[j, 1]
 
             # Convert to the right index
             idx1 = np.where(i1 == idof)
@@ -199,8 +204,8 @@ class NL_polynomial(_NL_compute):
             x = xd
 
         for j in range(nbln):
-            i1 = inl[j,0]
-            i2 = inl[j,1]
+            i1 = inl[j, 0]
+            i2 = inl[j, 1]
             idx1 = np.where(i1 == idof)
             x1 = x[idx1]
             if i2 == -1:
@@ -239,8 +244,8 @@ class NL_polynomial(_NL_compute):
         idof = np.arange(ndof)
         nbln = inl.shape[0]
         for j in range(nbln):
-            i1 = inl[j,0]
-            i2 = inl[j,1]
+            i1 = inl[j, 0]
+            i2 = inl[j, 1]
             idx1 = np.where(i1 == idof)
             x1 = x[idx1]
             if i2 == -1:
@@ -260,6 +265,7 @@ class NL_polynomial(_NL_compute):
             energy += e12
         return energy
 
+
 class NL_tanh_damping(_NL_compute):
     def __init__(self, inl, enl, knl):
         self.inl = inl
@@ -273,8 +279,8 @@ class NL_tanh_damping(_NL_compute):
         idof = np.arange(ndof)
         nbln = inl.shape[0]
         for j in range(nbln):
-            i1 = inl[j,0]
-            i2 = inl[j,1]
+            i1 = inl[j, 0]
+            i2 = inl[j, 1]
             idx1 = np.where(i1 == idof)
             xd1 = xd[idx1]
             if i2 == -1:
@@ -296,8 +302,8 @@ class NL_tanh_damping(_NL_compute):
         nbln = inl.shape[0]
 
         for j in range(nbln):
-            i1 = inl[j,0]
-            i2 = inl[j,1]
+            i1 = inl[j, 0]
+            i2 = inl[j, 1]
             idx1 = np.where(i1 == idof)
             xd1 = xd[idx1]
             if i2 == -1:
@@ -317,6 +323,7 @@ class NL_tanh_damping(_NL_compute):
             dfnl[idx1, id2::ndof+1] -= df12
             dfnl[idx2, id2::ndof+1] += df12
         return dfnl
+
 
 class NL_piecewise_linear(_NL_compute):
     def __init__(self, x, y, slope, inl, delta=None, symmetric=False,
@@ -341,8 +348,8 @@ class NL_piecewise_linear(_NL_compute):
         self.delta = delta
         self.inl = inl
         self.is_force = is_force
-        if not isinstance(symmetric,(list)) and inl.shape[0] > 1:
-             symmetric = [symmetric]*inl.shape[0]
+        if not isinstance(symmetric, (list)) and inl.shape[0] > 1:
+            symmetric = [symmetric]*inl.shape[0]
         self.symmetric = symmetric
 
     def compute(self, x, xd, fnl):
@@ -354,8 +361,8 @@ class NL_piecewise_linear(_NL_compute):
             x = xd
 
         for j in range(nbln):
-            i1 = inl[j,0]
-            i2 = inl[j,1]
+            i1 = inl[j, 0]
+            i2 = inl[j, 1]
             idx1 = np.where(i1 == idof)
             x1 = x[idx1]
             if i2 == -1:
@@ -382,8 +389,8 @@ class NL_piecewise_linear(_NL_compute):
             x = xd
 
         for j in range(nbln):
-            i1 = inl[j,0]
-            i2 = inl[j,1]
+            i1 = inl[j, 0]
+            i2 = inl[j, 1]
             idx1 = np.where(i1 == idof)
             x1 = x[idx1]
             if i2 == -1:
@@ -407,6 +414,7 @@ class NL_piecewise_linear(_NL_compute):
 
         return dfnl
 
+
 class NL_spline(_NL_compute):
     def __init__(self, x, coeff, symmetric, inl, is_force=True):
         self.x = x
@@ -424,8 +432,8 @@ class NL_spline(_NL_compute):
             x = xd
 
         for j in range(nbln):
-            i1 = inl[j,0]
-            i2 = inl[j,1]
+            i1 = inl[j, 0]
+            i2 = inl[j, 1]
             idx1 = np.where(i1 == idof)
             x1 = x[idx1]
             if i2 == -1:
@@ -451,8 +459,8 @@ class NL_spline(_NL_compute):
             x = xd
 
         for j in range(nbln):
-            i1 = inl[j,0]
-            i2 = inl[j,1]
+            i1 = inl[j, 0]
+            i2 = inl[j, 1]
             idx1 = np.where(i1 == idof)
             x1 = x[idx1]
             if i2 == -1:

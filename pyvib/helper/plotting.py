@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import matplotlib.pyplot as plt
+from copy import deepcopy
+
 import matplotlib.animation as animation
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.linalg import eigvals
-from ..hb.hbcommon import hb_signal
+
 from ..common import db
+from ..hb.hbcommon import hb_signal
 from .modal_plotting import fig_ax_getter
-from copy import deepcopy
 
 
 def periodicity(y, fs, dof=0, R=0, P=None, n=1, fig=None, ax=None,
@@ -32,7 +34,7 @@ def periodicity(y, fs, dof=0, R=0, P=None, n=1, fig=None, ax=None,
     R = np.atleast_1d(R)
     # assume the missing dimension is because there's only on realization
     if len(y.shape) == 3:
-        y = y[:,:,None]
+        y = y[:, :, None]
     npp, _, _R, _P = y.shape
     # always use last period as reference
     if P is None:
@@ -56,12 +58,12 @@ def periodicity(y, fs, dof=0, R=0, P=None, n=1, fig=None, ax=None,
     # alpha in decreasing value
     alpha = np.arange(len(R)+1)[:0:-1]/len(R)
     for r, a in zip(R, alpha):
-        peridocity = (y[::s,dof,r,P[:-1]].T -
-                      y[::s,dof,r,P[-1]]).ravel()
-        ax.plot(t[::s], (y[::s,dof,r,P].ravel('F')),'--', c='gray',
+        peridocity = (y[::s, dof, r, P[:-1]].T -
+                      y[::s, dof, r, P[-1]]).ravel()
+        ax.plot(t[::s], (y[::s, dof, r, P].ravel('F')), '--', c='gray',
                 alpha=a, **kwargs)
         ax.plot(t[:-npp:s], db(peridocity), **kwargs, alpha=0.75)
-    for i in range(1,len(P)):
+    for i in range(1, len(P)):
         x = t[npp * i]
         ax.axvline(x, color='k', linestyle='--')
 
@@ -71,20 +73,22 @@ def periodicity(y, fs, dof=0, R=0, P=None, n=1, fig=None, ax=None,
 
     return fig, ax
 
+
 def phase(y, yd, dof=0, fig=None, ax=None, *args, **kwargs):
     if fig is None:
         fig, ax = plt.subplots()
         ax.clear()
     dof = np.atleast_1d(dof)
     for i in dof:
-        ax.plot(y[i], yd[i], label=str(i))#, **kwargs)
+        ax.plot(y[i], yd[i], label=str(i))  # , **kwargs)
     ax.set_title('Phase space, dof: {}'.format(dof))
     ax.set_xlabel('Displacement (m)')
     ax.set_ylabel('Velocity (m/s)')
-    ax.ticklabel_format(axis='both', style='sci', scilimits=(-2,2))
+    ax.ticklabel_format(axis='both', style='sci', scilimits=(-2, 2))
     ax.legend(loc=1)
     # ax.axis('equal')
     return fig, ax
+
 
 def periodic(t, y, dof=0, ptype='displ', fig=None, ax=None, *args, **kwargs):
     """ To set ptype when used with the plotlist, use:
@@ -103,16 +107,17 @@ def periodic(t, y, dof=0, ptype='displ', fig=None, ax=None, *args, **kwargs):
         ax.clear()
     dof = np.atleast_1d(dof)
     for i in dof:
-        ax.plot(t, y[i], label=r'$x_{{{x}}}$'.format(x=i))#, **kwargs)
+        ax.plot(t, y[i], label=r'$x_{{{x}}}$'.format(x=i))  # , **kwargs)
 
-    ax.axhline(y=0, ls='--', lw='0.5',color='k')
+    ax.axhline(y=0, ls='--', lw='0.5', color='k')
     ax.set_title('Displacement vs time')
     ax.set_xlabel('Time (t)')
     ax.set_ylabel(ystr)
     # use sci format on y axis when figures are out of the [0.01, 99] bounds
-    ax.ticklabel_format(axis='y', style='sci', scilimits=(-2,2))
+    ax.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
     ax.legend()
     return fig, ax
+
 
 def harmonic(cnorm, dof=0, fig=None, ax=None, *args, **kwargs):
     if fig is None:
@@ -129,7 +134,8 @@ def harmonic(cnorm, dof=0, fig=None, ax=None, *args, **kwargs):
     nh = cnorm.shape[1] - 1
     ind = np.arange(nh+1)
     for j, i, color in zip(range(M), dof, colors):
-        kwargs = {'width':width, 'color':color, 'label':r'$x_{{{x}}}$'.format(x=i)}
+        kwargs = {'width': width, 'color': color,
+                  'label': r'$x_{{{x}}}$'.format(x=i)}
         ax.bar(ind+width*j, cnorm[i], alpha=alpha if j else 1, **kwargs)
 
     ax.set_xticks(ind+width/M)
@@ -139,9 +145,10 @@ def harmonic(cnorm, dof=0, fig=None, ax=None, *args, **kwargs):
     # use double curly braces to "escape" literal curly braces...
     ax.set_ylabel(r'Harmonic coefficient $C_{{{dof}-h}}$'.format(dof=dof))
     ax.set_xlim([-0.5, nh+0.5])
-    ax.ticklabel_format(axis='y', style='sci', scilimits=(-2,2))
+    ax.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
     ax.legend()
     return fig, ax
+
 
 def stability(sigma=None, lamb=None, T=None, ptype='exp', tol=1e-12, fig=None,
               ax=None, *args, **kwargs):
@@ -192,9 +199,10 @@ def stability(sigma=None, lamb=None, T=None, ptype='exp', tol=1e-12, fig=None,
         ax.axvline(x=0, color='k')
 
     if len(idx_u[0]) != 0:
-        ax.plot(xx[idx_u],yy[idx_u],'ro', mfc='none', label='unstable')#, **kwargs)
+        ax.plot(xx[idx_u], yy[idx_u], 'ro', mfc='none',
+                label='unstable')  # , **kwargs)
     if len(idx_s[0]) != 0:
-        ax.plot(xx[idx_s],yy[idx_s],'bx', label='stable')#, **kwargs)
+        ax.plot(xx[idx_s], yy[idx_s], 'bx', label='stable')  # , **kwargs)
     ax.set_title('Stability ({})'.format(str1))
     ax.set_xlabel(r'Real({})'.format(str2))
     ax.set_ylabel(r'Imag({})'.format(str2))
@@ -202,8 +210,8 @@ def stability(sigma=None, lamb=None, T=None, ptype='exp', tol=1e-12, fig=None,
 
     xmax = max(np.max(np.abs(xx))*1.1, 1.1)
     ymax = max(np.max(np.abs(yy))*1.1, 1.1)
-    ax.set_xlim(xmax * np.array([-1,1]))
-    ax.set_ylim(ymax * np.array([-1,1]))
+    ax.set_xlim(xmax * np.array([-1, 1]))
+    ax.set_ylim(ymax * np.array([-1, 1]))
     ax.grid(True, which='both')
     if ptype == 'multipliers':
         ax.axis('equal')
@@ -217,11 +225,11 @@ def configuration(y, fig=None, ax=None, *args, **kwargs):
 
     x1 = y[0]
     x2 = y[1]
-    ax.plot(x1,x2)
+    ax.plot(x1, x2)
     ax.set_title('Configuration space')
     ax.set_xlabel('Displacement x₁ (m)')
     ax.set_ylabel('Displacement x₂ (m)')
-    ax.ticklabel_format(axis='both', style='sci', scilimits=(-2,2))
+    ax.ticklabel_format(axis='both', style='sci', scilimits=(-2, 2))
     ax.axis('equal')
     return fig, ax
 
@@ -229,8 +237,8 @@ def configuration(y, fig=None, ax=None, *args, **kwargs):
 class Anim(object):
 
     def __init__(self, x, y, dof=0, title='', xstr='', ystr='',
-                 xmin=None,xmax=None,ymin=None,ymax=None,
-                 xscale=1,yscale=1, hb=None):
+                 xmin=None, xmax=None, ymin=None, ymax=None,
+                 xscale=1, yscale=1, hb=None):
 
         self.dof = dof
 
@@ -258,8 +266,8 @@ class Anim(object):
         if ymax is None:
             ymax = max(y)*1.5
         ax.set_xlim((xmin, xmax))
-        ax.set_ylim((ymin,ymax))
-        ax.ticklabel_format(axis='y', style='sci', scilimits=(-2,2))
+        ax.set_ylim((ymin, ymax))
+        ax.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
 
         plt.show(False)
         fig.canvas.draw()
@@ -278,12 +286,11 @@ class Anim(object):
             self.tangent = []
             self.ax_bif = []
             for bif in hb.bif:
-                bifargs = {'ls':'None','mfc':'None','marker':bif.marker,
-                           'label':bif.stype, 'visible':False}
-                self.ax_bif.append(ax.plot(x[-1], y[-1],**bifargs)[0])
+                bifargs = {'ls': 'None', 'mfc': 'None', 'marker': bif.marker,
+                           'label': bif.stype, 'visible': False}
+                self.ax_bif.append(ax.plot(x[-1], y[-1], **bifargs)[0])
 
-
-    def update(self, x,y):
+    def update(self, x, y):
         """The purpose of blit'ing is to avoid redrawing the axes, and all the ticks
         and, more importantly, avoid redrawing the text, which is relatively
         expensive.
@@ -308,20 +315,24 @@ class Anim(object):
         ymin, ymax = min(y), max(y)
         if xmin <= ax_xmin:
             xmin = xmin*scale if xmin < 0 else xmin*(scale-1)
-        else: xmin = ax_xmin
+        else:
+            xmin = ax_xmin
         if xmax >= ax_xmax:
             xmax = xmax*(scale-1) if xmax < 0 else xmax*scale
-        else: xmax = ax_xmax
+        else:
+            xmax = ax_xmax
         if (xmin < ax_xmin or xmax > ax_xmax):
             ax.set_xlim((xmin, xmax))
             axes_update = True
 
         if ymin <= ax_ymin:
             ymin = ymin*scale if ymin < 0 else ymin*(scale-1)
-        else: ymin = ax_ymin
+        else:
+            ymin = ax_ymin
         if ymax >= ax_ymax:
             ymax = ymax*(scale-1) if ymax < 0 else ymax*scale
-        else: ymax = ax_ymax
+        else:
+            ymax = ax_ymax
         if (ymin < ax_ymin or ymax > ax_ymax):
             ax.set_ylim((ymin, ymax))
             axes_update = True
@@ -353,13 +364,13 @@ class Anim(object):
 
         """
         if show:
-            color = ['k','r','g']
-            ls = ['-','--',':']
+            color = ['k', 'r', 'g']
+            ls = ['-', '--', ':']
             for omegabp, xbp, c, l in zip(omega, x, color, ls):
                 dy = (xbp - x0)*self.yscale
                 dx = (omegabp - w0)*self.xscale
-                self.tangent.append(self.ax.arrow(w0*self.xscale,x0*self.yscale,
-                                                  dx,dy, color=c, ls=l))
+                self.tangent.append(self.ax.arrow(w0*self.xscale, x0*self.yscale,
+                                                  dx, dy, color=c, ls=l))
         else:
             for tangent in self.tangent:
                 tangent.remove()
@@ -368,12 +379,13 @@ class Anim(object):
 
     def save(self):
         # Set up formatting for the movie files
-        Writer = animation.writers['ffmpeg'] # ['imagemagick'] #
+        Writer = animation.writers['ffmpeg']  # ['imagemagick'] #
         writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
-        #im_ani = animation.ArtistAnimation(self.fig, self.ims, interval=50, repeat_delay=3000,
+        # im_ani = animation.ArtistAnimation(self.fig, self.ims, interval=50, repeat_delay=3000,
         #                                   blit=True)
         #im_ani.save('im.mp4', writer=writer)
+
 
 class PointBrowser(object):
     """
@@ -388,7 +400,7 @@ class PointBrowser(object):
                  titlestr='', xunit='Hz'):
 
         if len(plotlist) == 0:
-            raise ValueError('MUST: len(plotlist)>0',plotlist)
+            raise ValueError('MUST: len(plotlist)>0', plotlist)
         x = np.asarray(x)
         y = np.asarray(y)
 
@@ -418,7 +430,7 @@ class PointBrowser(object):
                                       visible=False)
 
         # secondary/info plot
-        self.fig2, (self.ax1, self.ax2) = plt.subplots(2,1)
+        self.fig2, (self.ax1, self.ax2) = plt.subplots(2, 1)
         self.fig2.show(False)
 
     def onpress(self, event):
@@ -474,10 +486,10 @@ class PointBrowser(object):
 
         try:
             if not plt.fignum_exists(self.fig2.number):
-                self.fig2, (self.ax1, self.ax2) = plt.subplots(2,1)
+                self.fig2, (self.ax1, self.ax2) = plt.subplots(2, 1)
         except AttributeError:  # NameError:
             pass
-            #plt.show()
+            # plt.show()
         plotdata = {}
         if self.ptype == 'hb':
             omega = self.hb.omega_vec[dataind]
@@ -493,7 +505,7 @@ class PointBrowser(object):
             xdd = hb_signal(omega, t, *cdd)
             T = t[-1]
 
-            plotdata.update({'cnorm':cnorm})
+            plotdata.update({'cnorm': cnorm})
             titlestr = '{}\nFreq {:g}{}, Amplitude {:g}(m)'.\
                 format(self.titlestr, omega, self.xunit, self.y[dataind])
 
@@ -513,12 +525,12 @@ class PointBrowser(object):
             sigma = eigvals(Phi)
             lamb = None
             # change to 'tol':self.nnm.tol_stability on next update
-            plotdata.update({'tol':1e-3})
+            plotdata.update({'tol': 1e-3})
             titlestr = '{}\nFreq {:g}{}, Energy {:g}(log10(J))'.\
                 format(self.titlestr, 1/T*2*np.pi, self.xunit, self.x[dataind])
 
-        plotdata.update({'t': t, 'y':x, 'yd':xd, 'ydd':xdd, 'dof':self.dof,
-                         'T':T, 'sigma':sigma, 'lamb':lamb})
+        plotdata.update({'t': t, 'y': x, 'yd': xd, 'ydd': xdd, 'dof': self.dof,
+                         'T': T, 'sigma': sigma, 'lamb': lamb})
 
         self.ax1.clear()
         self.ax2.clear()
@@ -560,7 +572,8 @@ def nfrc(dof=0, pdof=0, plotlist=[], hb=None, nnm=None, energy_plot=False,
         xstr = 'Frequency ' + xunit
         if detect:
             for bif in hb.bif:
-                bifargs = {'ls':'None','mfc':'None','marker':bif.marker,'label':bif.stype}
+                bifargs = {'ls': 'None', 'mfc': 'None',
+                           'marker': bif.marker, 'label': bif.stype}
                 if len(bif.idx) > 1:
                     ax.plot(x[bif.idx[1:]], y[bif.idx[1:]], **bifargs)
         ax.legend()
@@ -568,7 +581,7 @@ def nfrc(dof=0, pdof=0, plotlist=[], hb=None, nnm=None, energy_plot=False,
         ptype = 'nnm'
         stab_vec = nnm.stab_vec
         if energy_plot:
-            energy = np.asarray(nnm.energy_vec)#.T[dof]
+            energy = np.asarray(nnm.energy_vec)  # .T[dof]
             x = np.log10(energy)
             y = np.asarray(nnm.omega_vec) * xscale  # / 2/np.pi
             titlestr = 'Frequency Energy plot (FEP)'
@@ -581,11 +594,10 @@ def nfrc(dof=0, pdof=0, plotlist=[], hb=None, nnm=None, energy_plot=False,
             ystr = 'Amplitude (m)'
             xstr = 'Frequency ' + xunit
 
-
     ax.set_title(titlestr)
     ax.set_xlabel(xstr)
     ax.set_ylabel(ystr)
-    ax.ticklabel_format(axis='y', style='sci', scilimits=(-2,2))
+    ax.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
 
     # picker: 5 points tolerance
     stab_vec = np.array(stab_vec)
@@ -601,10 +613,9 @@ def nfrc(dof=0, pdof=0, plotlist=[], hb=None, nnm=None, energy_plot=False,
     # The method above is nice, but have the problem that the last value of the
     # stable solution is omitted, when the solution turns unstable. Instead we
     # simply draw the unstable solution ob top.
-    lines = ax.plot(x,y,'-k',ms=1, picker=5, **kwargs)
+    lines = ax.plot(x, y, '-k', ms=1, picker=5, **kwargs)
     ax.plot(np.ma.masked_where(idx2, x), np.ma.masked_where(idx2, y),
             '--r', lw=1)
-
 
     if interactive:
         browser = PointBrowser(x, y, pdof, plotlist, fig, ax, lines, hb=hb,
@@ -616,4 +627,3 @@ def nfrc(dof=0, pdof=0, plotlist=[], hb=None, nnm=None, energy_plot=False,
         plt.show()
 
     return fig, ax
-

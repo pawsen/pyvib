@@ -2,22 +2,23 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from scipy.linalg import block_diag, kron, solve, lstsq, norm
+from scipy.linalg import block_diag, kron, lstsq, norm, solve
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import lsmr as splsmr
 
-from ..helper.plotting import Anim
 from ..forcing import sineForce, toMDOF
-from .hbcommon import fft_coeff, ifft_coeff, hb_signal, hb_components
+from ..helper.plotting import Anim
+from .bifurcation import BP, NS, Fold
+from .hbcommon import fft_coeff, hb_components, hb_signal, ifft_coeff
 from .stability import Hills
-from .bifurcation import Fold, NS, BP
+
 
 class HB():
     def __init__(self, M0, C0, K0, nonlin,
                  NH=3, npow2=8, nu=1, scale_x=1, scale_t=1,
                  amp0=1e-3, tol_NR=1e-6, max_it_NR=15,
                  stability=True, rcm_permute=False, anim=True,
-                 xstr='Hz',sca=1/(2*np.pi)):
+                 xstr='Hz', sca=1/(2*np.pi)):
         """Because frequency(in rad/s) and amplitude have different orders of
         magnitude, time and displacement have to be rescaled to avoid
         ill-conditioning.
@@ -119,15 +120,15 @@ class HB():
         # Form Q(t), eq (8). Q is orthogonal trigonometric basis(harmonic
         # terms) Then use Q to from the kron product Q(t) ⊗ Iₙ, eq (6)
         mat_func_form = np.empty((n*nt, nz))
-        Q = np.empty((NH*2+1,1))
+        Q = np.empty((NH*2+1, 1))
         for i in range(nt):
             Q[0] = 1
-            for ii in range(1,NH+1):
+            for ii in range(1, NH+1):
                 Q[ii*2-1] = np.sin(omega * t[i]*ii)
                 Q[ii*2] = np.cos(omega * t[i]*ii)
 
             # Stack the kron prod, so each block row is for time(i)
-            mat_func_form[i*n:(i+1)*n,:] = kron(Q.T, np.eye(n))
+            mat_func_form[i*n:(i+1)*n, :] = kron(Q.T, np.eye(n))
         self.mat_func_form_sparse = csr_matrix(mat_func_form)
 
         if stability:
@@ -137,7 +138,7 @@ class HB():
         # Initial guess for x. Here calculated by broadcasting. np.outer could
         # be used instead to calculate the outer product
         amp = np.ones(n)*amp0
-        x_guess = amp[:,None] * np.sin(omega * t)/scale_x
+        x_guess = amp[:, None] * np.sin(omega * t)/scale_x
 
         # Initial guess for z, z = Γ⁺x as given by eq (26). Γ is found as
         # Q(t)⊗Iₙ, eq 6
@@ -154,7 +155,7 @@ class HB():
             H = self.state_sys(z, A, force)
             H_z = self.hjac(z, A)
 
-            zsol, *_ = lstsq(H_z,H)
+            zsol, *_ = lstsq(H_z, H)
             z = z - zsol
 
             Obj = norm(H) / norm(z)
@@ -188,10 +189,10 @@ class HB():
             return omega, z
 
     def continuation(self, omega_cont_min, omega_cont_max,
-                     step=0.01,step_min=0.01, step_max=1, cont_dir=1,
+                     step=0.01, step_min=0.01, step_max=1, cont_dir=1,
                      opt_it_NR=3, it_cont_max=1e4, adaptive_stepsize=True,
                      angle_max_pred=90, dof=0,
-                     detect={'fold':False,'NS':False,'BP':False},
+                     detect={'fold': False, 'NS': False, 'BP': False},
                      default_bp=True):
         """ Do continuation of periodic solution.
 
@@ -232,8 +233,8 @@ class HB():
 
             nldofs = self.nonlin.nldofs()
             # index of nonlinear dofs/Fourier coefficients
-            nldofs_ext = np.kron(nldofs[:,None], np.ones(2*NH+1)) + \
-                         np.kron(np.ones((len(nldofs),1)), np.arange(2*NH+1)*n)
+            nldofs_ext = np.kron(nldofs[:, None], np.ones(2*NH+1)) + \
+                np.kron(np.ones((len(nldofs), 1)), np.arange(2*NH+1)*n)
 
             for k in detect.keys():
                 if k == 'fold' and detect[k] is True:
@@ -252,16 +253,16 @@ class HB():
 
         anim = None
         if self.anim:
-            par = {'title':'Nonlinear FRF',
-                   'xstr':'Frequency ({})'.format(self.xstr),
-                   'ystr':'Amplitude (m)','xscale':1/(scale_t)*self.sca,
-                   'dof':dof,'ymin':0,
-                   'xmin':omega_cont_min*self.sca,
-                   'xmax':omega_cont_max*self.sca*1.1,
-                   'hb':self,
+            par = {'title': 'Nonlinear FRF',
+                   'xstr': 'Frequency ({})'.format(self.xstr),
+                   'ystr': 'Amplitude (m)', 'xscale': 1/(scale_t)*self.sca,
+                   'dof': dof, 'ymin': 0,
+                   'xmin': omega_cont_min*self.sca,
+                   'xmax': omega_cont_max*self.sca*1.1,
+                   'hb': self,
                    }
             anim = Anim(x=self.omega_vec,
-                        y=np.asarray(self.xamp_vec).T[dof],**par)
+                        y=np.asarray(self.xamp_vec).T[dof], **par)
 
         omega2 = omega/nu
         # samme A som fra periodic calculation
@@ -288,9 +289,9 @@ class HB():
                 J_z = self.hjac(z, A)
                 J_w = self.hjac_omega(omega, z)
                 A_pred = np.vstack((
-                    np.hstack((J_z, J_w[:,None])),
+                    np.hstack((J_z, J_w[:, None])),
                     np.ones(nz+1)))
-                tangent = solve(A_pred, np.append(np.zeros(nz),1))
+                tangent = solve(A_pred, np.append(np.zeros(nz), 1))
                 tangent = tangent/norm(tangent)
             # With Moore-Penrose corrections, it is not needed to explicit
             # calculate the tangent again, since the corrections also correct
@@ -303,23 +304,21 @@ class HB():
 
             z = z_cont + tangent_pred[:nz]
             omega = omega_cont + tangent_pred[nz]
-            point = np.append(z,omega)
+            point = np.append(z, omega)
             if (it_cont >= 4 and
                 ((point - point_prev) @ (point_prev - point_pprev) /
                  (norm(point - point_prev) * norm(point_prev-point_pprev)) <
                  np.cos(angle_max_pred)) and
                 (it_cont > index_LP+1) and
-                (it_cont > index_BP+2)):
+                    (it_cont > index_BP+2)):
 
                 tangent_pred = -tangent_pred
                 z = z_cont + tangent_pred[:nz]
                 omega = omega_cont + tangent_pred[nz]
-                point = np.append(z,omega)
+                point = np.append(z, omega)
                 print('| Max angle reached. Predictor tangent is reversed. |')
 
-
-
-            ## Corrector step. NR iterations
+            # Corrector step. NR iterations
             # Follow eqs. 31-34
             omega2 = omega/nu
             t = self.assemblet(omega2)
@@ -335,16 +334,16 @@ class HB():
             # More-penrose updating
             while (Obj > tol_NR) and (it_NR <= max_it_NR):
                 H = self.state_sys(z, A, force)
-                H = np.append(H,0)
+                H = np.append(H, 0)
                 J_z = self.hjac(z, A)
                 J_w = self.hjac_omega(omega, z)
                 Hx = np.vstack((
-                    np.hstack((J_z, J_w[:,None])),
+                    np.hstack((J_z, J_w[:, None])),
                     V))
-                R = np.append(np.hstack((J_z, J_w[:,None])) @ V, 0)
+                R = np.append(np.hstack((J_z, J_w[:, None])) @ V, 0)
 
                 dNR = solve(Hx, H)
-                dV = solve(Hx,R)
+                dV = solve(Hx, R)
                 #lu, piv = linalg.lu_factor(Hx)
                 #dNR = linalg.lu_solve((lu, piv), H)
                 #dV = linalg.lu_solve((lu, piv), R)
@@ -374,7 +373,7 @@ class HB():
                       ' {:0.2g}'.format(step))
                 continue
             tangent = V
-            point = np.append(z,omega)
+            point = np.append(z, omega)
             if stability:
                 if it_NR == 1:
                     J_z = self.hjac(z, A)
@@ -394,20 +393,20 @@ class HB():
                 # Fold bifurcation is detected when the tangent prediction for
                 # omega changes sign
                 if (detect['fold'] and it_cont > fold.idx[-1] + 1 and
-                    tangent_LP[-1] * tangent_LP[-2] < 0):
+                        tangent_LP[-1] * tangent_LP[-2] < 0):
                     omega, z = fold.detect(omega, z, A, J_z, force, it_cont)
                     index_LP = fold.idx[-1]
 
                 # NS bifurcation is detected when a pair of Floquet exponents
                 # crosses the imaginary axis as complex conjugate
                 if (detect['NS'] and it_cont > ns.idx[-1] + 1 and
-                    tt_ns[1] != tt_ns[0]):
+                        tt_ns[1] != tt_ns[0]):
                     omega, z = ns.detect(omega, z, A, J_z, force, it_cont)
                     index_NS = ns.idx[-1]
 
                 if (detect['BP'] and it_cont > bp.idx[-1] + 1):
                     G = np.vstack((
-                        np.hstack((J_z, J_w[:,None])),
+                        np.hstack((J_z, J_w[:, None])),
                         tangent))
                     t_BP, p0_BP, q0_BP = bp.test_func(G, p0_BP, q0_BP)
                     tangent_BP.append(np.real(t_BP))
@@ -416,7 +415,6 @@ class HB():
                         omega, z = bp.detect(omega, z, A, J_z, J_w, tangent,
                                              force, it_cont)
                         index_BP = bp.idx[-1]
-
 
             z_cont = z.copy()
             omega_cont = omega
@@ -507,10 +505,10 @@ class HB():
             # TODO: mat_func_form is not square. But some factorization would
             # be nice
             for j in range(nz):
-                rhs = np.squeeze(np.asarray(full_rhs[:,j].todense()))
+                rhs = np.squeeze(np.asarray(full_rhs[:, j].todense()))
                 sol = splsmr(mat_func_form_sparse, rhs)
                 x = - sol[0]
-                bjac[:,j] = x
+                bjac[:, j] = x
 
             hjac = A - bjac
             return hjac
@@ -526,7 +524,7 @@ class HB():
         K = self.K
         NH = self.NH
         A = np.zeros(K.shape)
-        for i in range(1,NH+1):
+        for i in range(1, NH+1):
             blk = np.vstack((
                 np.hstack((-2*i**2 * omega * M, -i * C)),
                 np.hstack((i * C, -2*i**2 * omega * M))))
@@ -543,7 +541,7 @@ class HB():
         NH = self.NH
 
         A = K
-        for i in range(1,NH+1):
+        for i in range(1, NH+1):
             blk = np.vstack((
                 np.hstack((K - (i * omega2)**2 * M, -i * omega2 * C)),
                 np.hstack((i * omega2 * C, K - (i * omega2)**2 * M))))
@@ -570,11 +568,11 @@ class HB():
         omega2 = omega/nu
         iw = np.arange(NH+1) * omega2
         cd = c*iw
-        cd[:,0] = 0
+        cd[:, 0] = 0
         phid = phi + np.pi/2
 
         cdd = -c * iw**2
-        cdd[:,0] = 0
+        cdd[:, 0] = 0
         phidd = phi
 
         t = self.assemblet(omega2)*scale_t

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.ticker import MaxNLocator
+
 from ..common import db
 from ..lti_conversion import ss2frf
+
 
 class scaler():
     def __init__(self, scale):
@@ -30,6 +32,7 @@ def fig_ax_getter(fig=None, ax=None):
     elif ax is None:
         ax = fig.gca()
     return fig, ax
+
 
 def plot_knl(fnsi, sca=1):
     fs = fnsi.signal.fs
@@ -60,9 +63,9 @@ def plot_knl(fnsi, sca=1):
 
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
         ax1.set_title(f'Exponent: {exponent}. Estimated: {mu_mean[0]:0.3e}')
-        ax1.plot(freq_plot, np.real(mu),label='fnsi')
+        ax1.plot(freq_plot, np.real(mu), label='fnsi')
         ax1.axhline(mu_mean[0], c='k', ls='--', label='mean')
-        ax1.ticklabel_format(axis='y', style='sci', scilimits=(-2,2))
+        ax1.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
         ax1.set_xlabel('Frequency ' + xstr)
         ax1.legend()
 
@@ -79,7 +82,7 @@ def plot_knl(fnsi, sca=1):
         ax2.plot(freq_plot, np.imag(mu))
         ax2.set_title(f'Ratio log₁₀(ℝ(mu)/𝕀(mu))= {ratio:0.2f}')
         ax2.axhline(mu_mean[1], c='k', ls='--', label='mean')
-        ax2.ticklabel_format(axis='y', style='sci', scilimits=(-2,2))
+        ax2.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
         ax2.set_xlabel('Frequency ' + xstr)
         str1 = ''
         ymin = np.min(np.imag(mu))
@@ -96,6 +99,7 @@ def plot_knl(fnsi, sca=1):
 
     return figs, axs
 
+
 def plot_modes(idof, sr, sca=1, fig=None, ax=None, **kwargs):
     fig, ax = fig_ax_getter(fig, ax)
     if sca == 1:
@@ -110,13 +114,14 @@ def plot_modes(idof, sr, sca=1, fig=None, ax=None, **kwargs):
     nmodes = min(len(sr['wd']), 8)
     for i in range(nmodes):
         natfreq = sr['wn'][i]
-        ax.plot(idof, sr['realmode'][i],'-*', label='{:0.2f} {:s}'.
+        ax.plot(idof, sr['realmode'][i], '-*', label='{:0.2f} {:s}'.
                 format(natfreq*sca, xstr))
-    ax.axhline(y=0, ls='--', lw='0.5',color='k')
+    ax.axhline(y=0, ls='--', lw='0.5', color='k')
     ax.autoscale(enable=True, axis='x', tight=True)
     ax.legend()
 
     return fig, ax
+
 
 def plot_frf(freq, G, p=0, m=0, sca=1, fig=None, ax=None, *args, **kwargs):
     """FRF plot of specified input/output from frequency response matrix
@@ -135,7 +140,7 @@ def plot_frf(freq, G, p=0, m=0, sca=1, fig=None, ax=None, *args, **kwargs):
 
     for i in p:
         for j in m:
-            ax.plot(freq*sca, db(np.abs(G[:,i,j])), *args, **kwargs)
+            ax.plot(freq*sca, db(np.abs(G[:, i, j])), *args, **kwargs)
 
     if ax is None:
         ax.set_title('Nonparametric linear FRF')
@@ -144,16 +149,17 @@ def plot_frf(freq, G, p=0, m=0, sca=1, fig=None, ax=None, *args, **kwargs):
     else:
         xstr = '(rad/s)'
     ax.set_xlabel('Frequency ' + xstr)
-    ax.set_title(r'$G_{{{}{}}}$'.format(i,j))
+    ax.set_title(r'$G_{{{}{}}}$'.format(i, j))
 
     # For linear scale: 'Amplitude (m/N)'
     ax.set_ylabel('Amplitude (dB)')
     return fig, ax
 
+
 def plot_subspace_info(infodict, fig=None, ax=None, *args, **kwargs):
     """Plot summary of subspace identification normalized by len(flines)"""
     fig, ax = fig_ax_getter(fig, ax)
-    for k,v in infodict.items():
+    for k, v in infodict.items():
         r = np.fromiter(v.keys(), dtype=int)
         cost_sub = np.asarray([x['cost_sub'] for x in v.values()])
         stable_sub = np.asarray([x['stable_sub'] for x in v.values()])
@@ -176,6 +182,7 @@ def plot_subspace_info(infodict, fig=None, ax=None, *args, **kwargs):
 
     return fig, ax
 
+
 def plot_subspace_model(models, G, covG, norm_freq, fs, *args, **kwargs):
     """Plot identified subspace models"""
     dictget = lambda d, *k: [d[i] for i in k]
@@ -183,25 +190,26 @@ def plot_subspace_model(models, G, covG, norm_freq, fs, *args, **kwargs):
 
     stdG = None
     if covG is not None and len(covG) > 1:
-        tmp = np.empty((F,m*p), dtype=complex)
+        tmp = np.empty((F, m*p), dtype=complex)
         for i in range(m*p):
-            tmp[:,i] = covG[:,i,i]
+            tmp[:, i] = covG[:, i, i]
         tmp2 = np.empty_like(G, dtype=complex)
         for f in range(F):
-            tmp2[f] = tmp[f].reshape((m,p))
+            tmp2[f] = tmp[f].reshape((m, p))
         stdG = np.sqrt(tmp2)
 
-    #len(models)
+    # len(models)
     figs = []
     for k, model in models.items():
         fig, ax = plt.subplots(nrows=1, ncols=1)
         A, B, C, D = dictget(model, 'A', 'B', 'C', 'D')
-        Gss = ss2frf(A,B,C,D,norm_freq)
+        Gss = ss2frf(A, B, C, D, norm_freq)
 
-        lsopt = {'ls':'none', 'marker':'.', 'mfc':'none'}
-        figopt = {'fig':fig, 'ax':ax}
+        lsopt = {'ls': 'none', 'marker': '.', 'mfc': 'none'}
+        figopt = {'fig': fig, 'ax': ax}
         # The CN notation allows to get the Nth color of the color cycle
-        plot_frf(norm_freq*fs, G, **figopt, **lsopt, c='C1', label='BLA (non-par)')
+        plot_frf(norm_freq*fs, G, **figopt, **lsopt,
+                 c='C1', label='BLA (non-par)')
         plot_frf(norm_freq*fs, Gss, **figopt, ls='-', c='C0', label='BLA (par)')
         plot_frf(norm_freq*fs, G-Gss, **figopt, **lsopt, c='r', label='error')
         if stdG is not None:
@@ -210,19 +218,21 @@ def plot_subspace_model(models, G, covG, norm_freq, fs, *args, **kwargs):
         ax.legend(loc='upper right')
         tstr = ax.get_title() + f" | n={k}"
         ax.set_title(tstr)
-        figs.append((fig,ax))
+        figs.append((fig, ax))
 
     return figs
+
 
 def plot_svg(Sn, fig=None, ax=None, **kwargs):
     """Plot singular values of Sn. Alternative to stabilization diagram"""
     fig, ax = fig_ax_getter(fig, ax)
-    ax.semilogy(Sn/np.sum(Sn),'sk', markersize=6)
+    ax.semilogy(Sn/np.sum(Sn), 'sk', markersize=6)
     ax.set_xlabel('Model order')
     ax.set_ylabel('Normalized magnitude')
     return fig, ax
 
-def plot_stab(sd,fmin=None, fmax=None, sca=1, fig=None, ax=None):
+
+def plot_stab(sd, fmin=None, fmax=None, sca=1, fig=None, ax=None):
     fig, ax = fig_ax_getter(fig, ax)
 
     orUNS = []      # Unstabilised model order
