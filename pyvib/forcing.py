@@ -89,6 +89,59 @@ def sinesweep(amp, fs, f1, f2, vsweep, nrep=1, inctype='lin', t0=0):
     return u, t, finst
 
 
+def multisine_time(f1, f2, N, ms_type='full'):
+    """Multisine in time domain
+
+    Be sure to include integer number of periods when creating the time vector
+
+    Parameters
+    ----------
+    N : int
+       Number of harmonics
+
+    Returns
+    -------
+    fex : callable
+        Callable that takes time scalar or array as input
+
+    Examples
+    --------
+    >>> f1 = 0
+    >>> f2 = 150
+    >>> N = 100
+    >>> fex = multisine_time(f1=f1, f2=f2, N=N)
+    >>> P = 1
+    >>> f0 = (f2-f1)/N
+    >>> t2 = P/f0
+    >>> Nt = 1000
+    >>> t = np.linspace(0, t2, Nt*P, endpoint=False)
+    >>> x = fex(t)
+    >>> fs = f0*Nt
+    >>> X = np.fft.fft(x)
+    >>> nfd = X.shape[0]//2
+    >>> freq = np.arange(Nt)/Nt * fs
+    >>> plt.figure()
+    >>> plt.plot(freq[:nfd], db(np.abs(X[:nfd])))
+    >>> plt.xlabel('Frequency (Hz)')
+    >>> plt.ylabel('Amplitude (dB)')
+
+    """
+    f0 = (f2-f1) / N
+    linesMin = np.ceil(f1/f0).astype(int)
+    linesMax = np.floor(f2/f0).astype(int)
+    lines = np.arange(linesMin, linesMax, dtype=int)
+
+    # remove DC line
+    if lines[0] == 0:
+        lines = lines[1:]
+
+    phase = 2*np.pi*np.random.rand(len(lines))
+    fex = lambda t: (np.sum(np.cos(2*np.pi*f0*np.outer(t, lines) + phase),
+                            axis=1) / np.sqrt(len(lines)))
+
+    return fex
+
+
 def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full', rms=1, ngroup=4):
     """Random periodic excitation
 
