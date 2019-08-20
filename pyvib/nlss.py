@@ -3,6 +3,7 @@
 
 import numpy as np
 from numpy.linalg import norm
+from scipy.integrate import odeint
 from scipy.interpolate import interp1d
 
 from .nonlinear_elements import NLS
@@ -72,6 +73,93 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
         return jacobian(x0, self, weight=weight)
 
 
+def dnlsim2(system, u, t=None, x0=None, **kwargs):
+    """Simulate output of a continuous-time nonlinear system by using the ODE
+    solver `scipy.integrate.odeint`.
+
+    Calculate the output and the states of a nonlinear state-space model.
+        ẋ(t) = A x(t) + B u(t) + E g(x(t),y(t),u(t))
+        y(t) = C x(t) + D u(t) + F h(x(t),u(t))
+
+    Parameters
+    ----------
+    system : cont. time instance of `nlss`
+    u : ndarray(ns) or ndarray(ns,p)
+        An input array describing the input at each time `t` (interpolation is
+        assumed between given times).  If there are multiple inputs, then each
+        column of the rank-2 array represents an input.
+    t : ndarray, optional
+        The time steps at which the input is defined and at which the output is
+        desired. The default is 101 evenly spaced points on the interval
+        [0,10].
+    x0: ndarray(n), optional
+        The initial conditions on the state vector (zero by default).
+    kwargs : dict
+        Additional keyword arguments are passed on to the function
+        `odeint`.  See the notes below for more details.
+
+    Returns
+    -------
+    tout : ndarray(ns)
+        Time values for the output, as a 1-D array.
+    yout : ndarray(ns,p)
+        System response
+    xout : ndarray(ns,n)
+        Time-evolution of the state-vector.
+
+    Notes
+    -----
+    If `u` is a array it will be interpolated as
+    u = scipy.interpolate.interp1d(t, u, kind='linear', axis=0,
+                                   bounds_error=False)
+    Be sure this is OK or give `u` as a callable function.
+
+    This function uses `scipy.integrate.odeint` to solve the system's
+    differential equations. Additional keyword arguments given to `dnlsim2` are
+    passed on to `odeint`. See the documentation for `scipy.integrate.odeint`
+    for the full list of arguments.
+
+    """
+    if x0 is None:
+        x0 = np.zeros(system.B.shape[0], system.A.dtype)
+    if t is None:
+        t = np.linspace(0, 10, 101)
+    t = np.atleast_1d(t)
+    if len(t.shape) != 1:
+        raise ValueError("t must be a rank-1 array.")
+
+    if not callable(u):
+        if len(u.shape) == 1:
+            u = u[:, np.newaxis]
+        su = u.shape
+        assert su[0] == len(t), \
+            ("u must have the same number of rows as elements in t.")
+        assert su[1] == system.inputs, \
+            (f"The number of inputs in u ({su[1]}) is not the same as system "
+             "inputs ({system.inputs})")
+        # Create a callable that uses linear interpolation to calculate the
+        # input at any time.
+        ufunc = interp1d(t, u, kind='linear', axis=0, bounds_error=False)
+    else:
+        ufunc = u
+
+    def fprime(x, t, sys, ufunc):
+        """The vector field of the nonlinear system."""
+        ut = ufunc(t)
+        hvec = system.nly.fnl(x, 0, ut)
+        y = np.dot(sys.C, x) + np.squeeze(sys.D @ ut.T) + np.dot(sys.F, hvec)
+        gvec = sys.nlx.fnl(x, y, ut)
+        return sys.A @ x + np.squeeze(sys.B @ ut.T) + sys.E @ gvec
+
+    xout = odeint(fprime, x0, t, args=(system, ufunc), **kwargs)
+    # fnl returns empty array in case of no NL; to broadcast we transpose
+    ut = ufunc(t)
+    hvec = system.nly.fnl(xout, 0, ut)
+    yout = (system.C @ xout.T + system.D @ ut.T).T + system.F @ hvec
+
+    return t, yout, xout
+
+
 def dnlsim(system, u, t=None, x0=None):
     """Simulate output of a discrete-time nonlinear system.
 
@@ -81,7 +169,7 @@ def dnlsim(system, u, t=None, x0=None):
 
     Parameters
     ----------
-    system : instance of `nlss`
+    system : discrete time instance of `nlss`
     u : ndarray(ns) or ndarray(ns,p)
         An input array describing the input at each time `t` (interpolation is
         assumed between given times).  If there are multiple inputs, then each
