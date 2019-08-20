@@ -135,11 +135,20 @@ def multisine_time(f1, f2, N, ms_type='full'):
     if lines[0] == 0:
         lines = lines[1:]
 
-    phase = 2*np.pi*np.random.rand(len(lines))
-    fex = lambda t: (np.sum(np.cos(2*np.pi*f0*np.outer(t, lines) + phase),
-                            axis=1) / np.sqrt(len(lines)))
+    phases = 2*np.pi*np.random.rand(len(lines))
 
-    return fex
+    def fex(t):
+        try:
+            return (np.sum(np.cos(2*np.pi*f0*np.outer(t, lines) + phases),
+                           axis=1) / np.sqrt(len(lines)))
+        # if t or lines are too long, the outer product result in memory error
+        except MemoryError:
+            f = 0
+            for phase, line in zip(phases, lines):
+                f += np.cos(2*np.pi*f0*t*line + phase)
+            return f / np.sqrt(len(lines))
+
+    return fex, lines
 
 
 def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full', rms=1, ngroup=4):
