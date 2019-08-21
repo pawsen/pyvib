@@ -28,6 +28,7 @@ class Subspace(StateSpace, StateSpaceIdent):
         super().__init__(*system, **kwargs)
 
         self._cost_normalize = len(signal.lines)
+        self.models = {}
 
     @property
     def weight(self):
@@ -58,6 +59,10 @@ class Subspace(StateSpace, StateSpaceIdent):
 
         self.A, self.B, self.C, self.D, self.z, self.stable = \
             A, B, C, D, z, stable
+        # save in models dict, so we can plot subspace error(plot_models)
+        cost = self.cost(weight=weight) / self.signal.F
+        self.models[n] = {'A': self.A, 'B': self.B, 'C': self.C, 'D': self.D,
+                          'r': r, 'cost': cost, 'stable': stable}
 
         return A, B, C, D, z, stable
 
@@ -71,7 +76,6 @@ class Subspace(StateSpace, StateSpaceIdent):
             weight = self.weight
 
         infodict = {}
-        models = {}
         if info:
             print('Starting subspace scanning')
             print(f"n: {nvec.min()}-{nvec.max()}. r: {maxr}")
@@ -112,12 +116,11 @@ class Subspace(StateSpace, StateSpaceIdent):
                     # the class.
                     print(f"New best r: {r}")
                     cost_old = cost
-                    models[n] = {'A': self.A, 'B': self.B, 'C': self.C, 'D':
+                    self.models[n] = {'A': self.A, 'B': self.B, 'C': self.C, 'D':
                                  self.D, 'r': r, 'cost': cost, 'stable': stable}
 
-            self.models = models
             self.infodict = infodict
-        return models, infodict
+        return self.models, infodict
 
     def plot_info(self, fig=None, ax=None):
         """Plot summary of subspace identification"""
