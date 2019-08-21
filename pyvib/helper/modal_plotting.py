@@ -123,7 +123,7 @@ def plot_modes(idof, sr, sca=1, fig=None, ax=None, **kwargs):
     return fig, ax
 
 
-def plot_frf(freq, G, p=0, m=0, sca=1, fig=None, ax=None, *args, **kwargs):
+def plot_frf(G, freq, p=0, m=0, sca=1, fig=None, ax=None, *args, **kwargs):
     """FRF plot of specified input/output from frequency response matrix
 
     Parameters
@@ -134,13 +134,7 @@ def plot_frf(freq, G, p=0, m=0, sca=1, fig=None, ax=None, *args, **kwargs):
         vector of frequencies at which the FRM is given (in Hz)
     """
     fig, ax = fig_ax_getter(fig, ax)
-
-    m = np.atleast_1d(m)
-    p = np.atleast_1d(p)
-
-    for i in p:
-        for j in m:
-            ax.plot(freq*sca, db(np.abs(G[:, i, j])), *args, **kwargs)
+    ax.plot(freq*sca, db(np.abs(G[:, p, m])), *args, **kwargs)
 
     if ax is None:
         ax.set_title('Nonparametric linear FRF')
@@ -149,7 +143,7 @@ def plot_frf(freq, G, p=0, m=0, sca=1, fig=None, ax=None, *args, **kwargs):
     else:
         xstr = '(rad/s)'
     ax.set_xlabel('Frequency ' + xstr)
-    ax.set_title(r'$G_{{{}{}}}$'.format(i, j))
+    ax.set_title(r'$G_{{{}{}}}$'.format(p, m))
 
     # For linear scale: 'Amplitude (m/N)'
     ax.set_ylabel('Amplitude (dB)')
@@ -183,42 +177,78 @@ def plot_subspace_info(infodict, fig=None, ax=None, *args, **kwargs):
     return fig, ax
 
 
-def plot_subspace_model(models, G, covG, norm_freq, fs, *args, **kwargs):
-    """Plot identified subspace models"""
-    dictget = lambda d, *k: [d[i] for i in k]
-    F, m, p = G.shape
+def plot_subspace_model(models, G, covG, norm_freq, fs, p=None, m=None, *args, **kwargs):
+    """Plot FRF for identified subspace models
 
-    stdG = None
-    if covG is not None and len(covG) > 1:
-        tmp = np.empty((F, m*p), dtype=complex)
-        for i in range(m*p):
-            tmp[:, i] = covG[:, i, i]
-        tmp2 = np.empty_like(G, dtype=complex)
-        for f in range(F):
-            tmp2[f] = tmp[f].reshape((m, p))
-        stdG = np.sqrt(tmp2)
+    Parameters
+    ----------
+    models : dict
+        dict with state space matrices
+    G : ndarray(F,p,m)
+        frequency response matrix (FRM)
+    covG: ndarray(F,p*m,p*m)
+        Covariance of G
+    norm_freq : ndarray(F)
+        vector of normalized frequencies (0 < freq < 0.5 Hz) at which the FRM
+        is given
+    fs : int
+        Sampling frequency
+    p : int, optional
+        Outputs to plot for. Default all when None
+    m : int, optional
+        Inputs to plot for. Default all when None
+    """
+    dictget = lambda d, *k: [d[i] for i in k]
+
+    def get_stdG(G, covG):
+        F, p, m = G.shape
+
+        stdG = None
+        if covG is not None and len(covG) > 1:
+            tmp = np.empty((F, m*p), dtype=complex)
+            for i in range(m*p):
+                tmp[:, i] = covG[:, i, i]
+            tmp2 = np.empty_like(G, dtype=complex)
+            for f in range(F):
+                tmp2[f] = tmp[f].reshape((p, m))
+            stdG = np.sqrt(tmp2)
+        return stdG
+
+    stdG = get_stdG(G, covG)
+    freq = norm_freq * fs
 
     # len(models)
     figs = []
     for k, model in models.items():
-        fig, ax = plt.subplots(nrows=1, ncols=1)
         A, B, C, D = dictget(model, 'A', 'B', 'C', 'D')
+        n = len(A)
         Gss = ss2frf(A, B, C, D, norm_freq)
 
-        lsopt = {'ls': 'none', 'marker': '.', 'mfc': 'none'}
-        figopt = {'fig': fig, 'ax': ax}
-        # The CN notation allows to get the Nth color of the color cycle
-        plot_frf(norm_freq*fs, G, **figopt, **lsopt,
-                 c='C1', label='BLA (non-par)')
-        plot_frf(norm_freq*fs, Gss, **figopt, ls='-', c='C0', label='BLA (par)')
-        plot_frf(norm_freq*fs, G-Gss, **figopt, **lsopt, c='r', label='error')
-        if stdG is not None:
-            plot_frf(norm_freq*fs, stdG, **figopt, ls='--', c='k', label='stdG')
+        # plot all transfer functions unless p or m is specified
+        if p is None:
+            p = np.arange(G.shape[1])
+        if m is None:
+            m = np.arange(G.shape[2])
+        p = np.atleast_1d(p)
+        m = np.atleast_1d(m)
+        for i in p:
+            for j in m:
+                fig, ax = plt.subplots(nrows=1, ncols=1)
+                lsopt = {'ls': 'none', 'marker': '.', 'mfc': 'none'}
+                # The CN notation allows to get the Nth color of the color cycle
+                ax.plot(freq, db(np.abs(G[:, i, j])), **lsopt, c='C1', label='BLA (non-par)')
+                ax.plot(freq, db(np.abs(Gss[:, i, j])), ls='-', c='C0', label='BLA (par)')
+                ax.plot(freq, db(np.abs(G[:, i, j] - Gss[:, i, j])), **lsopt, c='r', label='error')
+                if stdG is not None:
+                    ax.plot(freq, db(np.abs(stdG[:, i, j])), ls='--', c='k', label='stdG')
 
-        ax.legend(loc='upper right')
-        tstr = ax.get_title() + f" | n={k}"
-        ax.set_title(tstr)
-        figs.append((fig, ax))
+                ax.legend(loc='upper right')
+                ax.set_xlabel('Frequency (Hz)')
+                # For linear scale: 'Amplitude (m/N)'
+                ax.set_ylabel('Amplitude (dB)')
+                ax.set_title(r'$G_{{{}{}}}$'.format(i, j) + f" | n={n}")
+
+                figs.append((fig, ax))
 
     return figs
 

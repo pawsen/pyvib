@@ -49,7 +49,7 @@ def ss2phys(A, B, C, D=None):
     C = solve(T.T, C.T).T        # (C = C*T^-1)
     A = solve(T.T, (T @ A).T).T  # (A = T*A*T^-1)
     B = T @ B
-    return A, B, C, T
+    return A, B, C, D, T
 
 
 def ss2frf(A, B, C, D, freq):
@@ -58,7 +58,17 @@ def ss2frf(A, B, C, D, freq):
 
     Computes the frequency response function (FRF) or matrix (FRM) Ĝ at the
     normalized frequencies `freq` from the state-space matrices `A`, `B`, `C`,
-    and `D`. ```̂G(f) = C*inv(exp(2j*pi*f)*I - A)*B + D```
+    and `D`. :math:`G(f) = C*inv(exp(2j*pi*f)*I - A)*B + D`
+
+    Parameters
+    ----------
+    A : ndarray(n,n) state matrix
+    B : ndarray(n,m) input matrix
+    C : ndarray(p,n) output matrix
+    D : ndarray(p,m) feed-through matrix
+    freq : ndarray(F)
+        vector of normalized frequencies at which the FRM is computed
+        (0 < freq < 0.5)
 
     Returns
     -------
