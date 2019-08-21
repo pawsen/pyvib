@@ -5,6 +5,8 @@ import numpy as np
 from scipy import linalg
 from scipy.linalg import norm, solve
 
+from .nonlinear_elements_newmark import NLS
+
 
 class Newmark():
     """Nonlinear Newmark solver class.
@@ -15,10 +17,12 @@ class Newmark():
 
     """
 
-    def __init__(self, M, C, K, nls, gtype=None):
+    def __init__(self, M, C, K, nls=None, gtype=None):
         self.M = M
         self.C = C
         self.K = K
+        if nls is None:
+            nls = NLS()
         self.nls = nls
         if gtype is None:
             self.gamma = 1/2
