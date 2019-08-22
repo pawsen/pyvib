@@ -66,13 +66,14 @@ class FNSI(NLSS, NonlinearStateSpace, StateSpaceIdent):
 
         super().__init__(*sys, **kwargs)
         self.r = None
+        self.Ff = np.array([])
 
     def to_cont(self, method='zoh', alpha=None):
         """Convert to discrete time. Only A and B changes for zoh method"""
         Bext = np.hstack((self.B, -self.E))
-        Dext = np.hstack((self.D, -self.F))
+        Dext = np.hstack((self.D, -self.Ff))
         Ac, Bcext, Cc, Dcext = \
-            discrete2cont(self.A, Bext, self.C, Dext, method, alpha)
+            discrete2cont(self.A, Bext, self.C, Dext, self.dt, method, alpha)
 
         Bc = Bcext[:, :self.m]
         Ec = Bcext[:, self.m:]
@@ -163,64 +164,74 @@ class FNSI(NLSS, NonlinearStateSpace, StateSpaceIdent):
         self.C = Cd
         self.D = Dd[:, :self.m]
         self.E = E
-        #self.F = F
+        self.Ff = F
 
     def nl_coeff(self, iu):
         """Form the extended FRF (transfer function matrix) He(ω) and extract
         nonlinear coefficients
         G(ω) is the linear FRF matrix, eq. (46)
         He(ω) is formed using eq (47)
+
         Parameters
         ----------
         iu : int
-            The location of the force.
+            Location of exciting force.
+
         Returns
         -------
-        knl : ndarray(complex)
+        knl : complex ndarray(F, n_nx) or empty
             The nonlinear coefficients (frequency-dependent and complex-valued)
-        G(ω) : ndarray(complex)
+        G(ω) : complex ndarray(F, p)
             Estimate of the linear FRF
-        He(ω) : ndarray(complex)
+        He(ω) : complex ndarray
             The extended FRF (transfer function matrix)
         """
         sig = self.signal
         lines = self.lines
-        p, m, n_nx = self.p, self.m, self.nlx.n_nx
+        p, m, nnl = self.p, self.m, self.nlx.n_nl
         Ac, Bc, Cc, Dc, Ec, Fc = self.to_cont(method='zoh')
         # Recombine E and F. They were extracted as negative part of B and D
         Bext = np.hstack((Bc, -Ec))
-        Dext = np.hstack((Cc, -Fc))
+        Dext = np.hstack((Dc, -Fc))
 
-        freq = np.arange(sig.npp)/self.dt/sig.npp
+        freq = np.arange(sig.npp)/sig.npp/self.dt
         F = len(lines)
 
-        nnl = n_nx
         # just return in case of no nonlinearities
         if nnl == 0:
             knl = np.empty(shape=(0, 0))
         else:
-            knl = np.empty((nnl, F), dtype=complex)
+            knl = np.empty((F, nnl), dtype=complex)
 
-        # Extra rows of zeros in He is for ground connections
-        # It is not necessary to set inl's connected to ground equal to l, as
-        # -1 already point to the last row.
-        G = np.empty((p, F), dtype=complex)
-        He = np.empty((p+1, m+nnl, F), dtype=complex)
-        He[-1, :, :] = 0
+        # Determine which dofs are connected.
+        inl1 = np.zeros(nnl, dtype=int)
+        inl2 = np.zeros(nnl, dtype=int)
+        # TODO. This only works for MAX two connected dofs. Also it does not
+        # take the sign(in w) into account. See the - in knl calc.
+        for i, nl in enumerate(self.nlx.nls):
+            # each nonzero results in a row in idx
+            idx = np.argwhere(nl.w)
+            inl1[i] = idx[0,1]
+            if idx.shape[0] == 1:  # connected to ground
+                inl2[i] = -1
+            else:
+                inl2[i] = idx[1,1]
+
+        # Extra +1 zeros for p in He is for ground connections
+        G = np.empty((F, p), dtype=complex)
+        He = np.empty((F, p+1, m+nnl), dtype=complex)
+        He[:, -1, :] = 0
 
         In = np.eye(*Ac.shape, dtype=complex)
         for k in range(F):
             # eq. 47
-            He[:-1, :, k] = Cc @ solve(In*2j*np.pi *
+            He[k, :-1, :] = Cc @ solve(In*2j*np.pi *
                                        freq[lines[k]] - Ac, Bext) + Dext
 
-            for nl in range(n_nx):
-                # number of nonlin connections for the given nl type
-                idx = 0
-                knl[nl, k] = He[iu, m+nl, k] / (He[idx, 0, k] - He[-1, 0, k])
+        for i in range(nnl):
+            knl[:, i] = -He[:, iu, m+i] / (He[:, inl1[i], 0]-He[:, inl2[i], 0])
 
-            for j, dof in enumerate(range(p)):
-                G[j, k] = He[dof, 0, k]
+        G = He[:, :p, 0]
 
         self.knl = knl
         return G, knl
