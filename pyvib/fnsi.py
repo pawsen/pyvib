@@ -134,7 +134,7 @@ class FNSI(NLSS, NonlinearStateSpace, StateSpaceIdent):
         scaling = scaling
         return U, Y, scaling
 
-    def estimate(self, n, r, bd_method='explicit', fmin=None, fmax=None, weight=None):
+    def estimate(self, n, r, bd_method='opt', fmin=None, fmax=None, weight=None):
         self.r = r
         self.n = n
         # set active elements now the system size is specified

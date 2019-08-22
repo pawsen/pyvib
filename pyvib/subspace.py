@@ -7,6 +7,7 @@ from numpy import kron
 # svd and solve allows broadcasting when imported from numpy
 from numpy.linalg import qr, solve, svd
 from scipy.linalg import logm, lstsq, norm, pinv
+from scipy.optimize import least_squares
 from scipy.signal import dlsim
 
 from .common import (matrix_square_inv, mmul_weight, normalize_columns,
@@ -46,7 +47,7 @@ class Subspace(StateSpace, StateSpaceIdent):
     def jacobian(self, x0, weight=False):
         return jacobian(x0, self, weight=weight)
 
-    def estimate(self, n, r, weight=False, copy=False):
+    def estimate(self, n, r, weight=False, bd_method='opt', copy=False):
         """Subspace estimation"""
 
         self.n = n
@@ -55,7 +56,8 @@ class Subspace(StateSpace, StateSpaceIdent):
         if weight is True:
             weight = signal.covG
         A, B, C, D, z, stable = \
-            subspace(signal.G, weight, signal.norm_freq, n, r)
+            subspace(G=signal.G, covG=weight, freq=signal.norm_freq, n=n, r=r,
+                     bd_method=bd_method)
 
         self.A, self.B, self.C, self.D, self.z, self.stable = \
             A, B, C, D, z, stable
@@ -117,7 +119,7 @@ class Subspace(StateSpace, StateSpaceIdent):
                     print(f"New best r: {r}")
                     cost_old = cost
                     self.models[n] = {'A': self.A, 'B': self.B, 'C': self.C, 'D':
-                                 self.D, 'r': r, 'cost': cost, 'stable': stable}
+                                      self.D, 'r': r, 'cost': cost, 'stable': stable}
 
             self.infodict = infodict
         return self.models, infodict
@@ -395,8 +397,10 @@ def subspace(G, covG, freq, n, r, U=None, Y=None, bd_method='nr',
 
     if bd_method == 'explicit':
         B, D = bd_explicit(A, C, Or, n, r, m, p, RT)
-    else:  # bd_method == 'nr':
+    elif bd_method == 'nr':
         B, D = bd_nr(A, C, G, freq, n, r, m, p, U, Y, weight)
+    else:  # lm optimization
+        B, D = bd_opt(A, C, G, freq, n, r, m, p, U, Y, weight)
 
     # Check stability of the estimated model
     isstable = is_stable(A)
@@ -473,15 +477,14 @@ def bd_explicit(A, C, Or, n, r, m, p, RT):
 def bd_nr(A, C, G, freq, n, r, m, p, U=None, Y=None, weight=False):
     """Estimate B, D using transfer function-based optimization
     (Newton-Raphson iterations)
-
     """
 
     # initial guess for B and D
     theta = np.zeros((m*(n+p)))
-    niter = 1  # one iteration is enough
+    niter = 2  # one iteration is enough
     for i in range(niter):
         if U is None and Y is None:
-            cost = frf_costfcn(theta, G, weight)
+            cost = frf_costfcn(theta, G, A, C, n, m, p, freq, weight)
         else:
             cost = output_costfcn(theta, A, C, n, m, p, freq, U, Y, weight)
         jac = frf_jacobian(theta, A, C, n, m, p, freq, U, weight)
@@ -492,7 +495,7 @@ def bd_nr(A, C, G, freq, n, r, m, p, U=None, Y=None, weight=False):
         # Compute Gauss-Newton parameter update. For small residuals e(Θ), the
         # Hessian can be approximated by the Jacobian of e. See (5.140) in
         # paduart2008.
-        dtheta, res, rank, s = lstsq(jac, cost, check_finite=False)
+        dtheta, res, rank, s = lstsq(jac, -cost, check_finite=False)
         dtheta /= scaling
         theta += dtheta
 
@@ -502,23 +505,70 @@ def bd_nr(A, C, G, freq, n, r, m, p, U=None, Y=None, weight=False):
     return B, D
 
 
-def frf_costfcn(x0, G, weight=False):
-    """Compute the cost, V = -W*(0 - G), i.e. minus the weighted error(the
-    residual) when considering zero initial estimates for Ĝ
+def bd_opt(A, C, G, freq, n, r, m, p, U=None, Y=None, weight=False):
+    """Estimate B, D using transfer function-based LM optimization
 
-    Using x0, it would be possible to extract B, D and create an estimate G
+    This is the preferred way to estimate B, D
+    """
+
+    # initial guess for B and D
+    x0 = np.zeros((m*(n+p)))
+    if U is None and Y is None:
+        cost = frf_costfcn
+    else:
+        cost = output_costfcn
+    kwargs = {'A': A, 'C': C, 'G': G, 'n': n, 'm': m, 'p': p, 'freq': freq,
+              'U': U, 'Y': Y, 'weight': weight}
+    res = least_squares(fun=cost, x0=x0, jac=frf_jacobian, kwargs=kwargs)
+    x = res['x']
+    B = x[:n*m].reshape((n, m))
+    D = x[n*m:].reshape((p, m))
+    return B, D
+
+
+def frf_costfcn(x0, G, A, C, n, m, p, freq, weight=False, **kwargs):
+    """Compute the cost, V = W*(Ĝ - G)
+
+    B, D are extracted from x0,
     Ĝ(f) = C*inv(z(f)*I - A)*B + D and W = 1/σ_G.
 
+    For the initial guess B=D=0: Ĝ=0
     """
+    B = x0[:n*m].reshape(n, m)
+    D = x0[n*m:m*(n+p)].reshape(p, m)
+    Gss = ss2frf(A, B, C, D, freq)
+    V = Gss - G
     if weight is False:
-        resG = G.ravel()
+        V = V.ravel(order='F')
     else:
-        resG = mmul_weight(G, weight).ravel()
+        V = mmul_weight(V, weight).ravel(order='F')
 
-    return np.hstack((resG.real, resG.imag))
+    return np.hstack((V.real, V.imag))
 
 
-def frf_jacobian(x0, A, C, n, m, p, freq, U=None, weight=False):
+def output_costfcn(x0, A, C, n, m, p, freq, U, Y, weight, **kwargs):
+    """Compute the cost, e = W*(Ŷ - Y)
+
+    Ĝ(f) = C*inv(z(f)*I - A)*B + D and W = 1/σ_G.
+    Ŷ(f) = U(f) * Ĝ(f)
+    """
+    B = x0[:n*m].reshape(n, m)
+    D = x0[n*m:m*(n+p)].reshape(p, m)
+
+    Gss = ss2frf(A, B, C, D, freq)
+    # fast way of doing: Ymodel[f] = U[f] @ Gss[f].T
+    Yss = np.einsum('ij,ilj->il', U, Gss)
+    V = Yss - Y
+    if weight is False:
+        V = V.ravel(order='F')
+    else:
+        # TODO order='F' ?
+        V = mmul_weight(V, weight).ravel(order='F')
+
+    return np.hstack((V.real, V.imag))
+
+
+def frf_jacobian(x0, A, C, n, m, p, freq, U=None, weight=False, **kwargs):
     """Compute partial derivative of the weighted error, e = W*(Ĝ - G) wrt B, D
 
     Ĝ(f) = C*inv(z(f)*I - A)*B + D and W = 1/σ_G.
@@ -536,7 +586,7 @@ def frf_jacobian(x0, A, C, n, m, p, freq, U=None, weight=False):
     z = np.exp(2j*np.pi*freq)
     B = x0[:n*m].reshape(n, m)
     D = x0[n*m:m*(n+p)].reshape(p, m)
-    # unweighted jacobian
+    # unweighted jacobian, JB:(F,p,m,n*m)
     _, JB, _, JD = jacobian_freq(A, B, C, z)
     # add weight
     F = len(z)
@@ -553,10 +603,12 @@ def frf_jacobian(x0, A, C, n, m, p, freq, U=None, weight=False):
         tmp[..., :n*m] = np.einsum('ij,iljk->ilk', U, JB)
         tmp[..., n*m:] = np.einsum('ij,iljk->ilk', U, JD)
 
-    tmp.shape = (F, p*_m, npar)
+    #tmp.shape = (F, p*_m, npar)
+    tmp = tmp.reshape((F, p*_m, npar), order='F')
     if weight is not False:
         tmp = mmul_weight(tmp, weight)
-    tmp.shape = (F*p*_m, npar)
+    #tmp.shape = (F*p*_m, npar)
+    tmp = tmp.swapaxes(0, 1).reshape((F*p*_m, npar), order='F')
 
     # B and D as one parameter vector => concatenate Jacobians
     # We do: J = np.hstack([JB, JD]), jac = np.vstack([J.real, J.imag]), but
@@ -568,30 +620,9 @@ def frf_jacobian(x0, A, C, n, m, p, freq, U=None, weight=False):
     return jac
 
 
-def output_costfcn(x0, A, C, n, m, p, freq, U, Y, weight):
-    """Compute the cost, e = W*(Ŷ - Y)
-
-    Ĝ(f) = C*inv(z(f)*I - A)*B + D and W = 1/σ_G.
-    Ŷ(f) = U(f) * Ĝ(f)
-    """
-    B = x0[:n*m].reshape(n, m)
-    D = x0[n*m:m*(n+p)].reshape(p, m)
-
-    Gss = ss2frf(A, B, C, D, freq)
-    Gss = np.random.rand(*Gss.shape)
-    # fast way of doing: Ymodel[f] = U[f] @ Gss[f].T
-    Ymodel = np.einsum('ij,ilj->il', U, Gss)
-    V = Ymodel - Y
-    if weight is not False:
-        V = V.ravel(order='F')
-    else:
-        # TODO order='F' ?
-        V = mmul_weight(V, weight).ravel()
-
-    return np.hstack((V.real, V.imag))
-
-
 def jacobian(x0, system, weight=False):
+    """Returns Jacobian as stacked array
+    """
 
     n, m, p, npar = system.n, system.m, system.p, system.npar
     F = len(system.z)
@@ -653,10 +684,11 @@ def jacobian_freq(A, B, C, z):
     JA : ndarray(F,p,m,n*n)
         JA(f,:,:,i) contains the partial derivative of the unweighted error
         e(f) at frequency f wrt. A(k,l)
-    JB : ndarray(p,m,n*m,F)
+    JB : ndarray(F,p,m,n*m)
         JB(f,:,:,i) contains the partial derivative of e(f) w.r.t. B(k,l)
-    JC : ndarray(p,m,p*n,F)
+    JC : ndarray(F,p,m,p*n)
         JC(f,:,:,i) contains the partial derivative of e(f) w.r.t. C(k,l)
+    JD : ndarray(F,p,m,p*m)
 
     Notes
     -----
@@ -701,13 +733,13 @@ def jacobian_freq(A, B, C, z):
         # Note that the partial derivative of e(f) w.r.t. B(k,l) is equal to
         # temp2*fOne(n,m,sub2ind([n m],k,l)), and thus
         # JB(:,l,sub2ind([n m],k,l),f) = temp2(:,k)
-        JB[f] = np.reshape(kron(Im, temp2), (p, m, m*n), order='F')
+        JB[f] = np.reshape(kron(Im, temp2), (m*n,p,m), order='F').transpose(1,2,0)
 
         # Jacobian w.r.t. all elements in C
         # Note that the partial derivative of e(f) w.r.t. C(k,l) is equal to
         # fOne(p,n,sub2ind([p n],k,l))*temp3, and thus
         # JC(k,:,sub2ind([p n],k,l),f) = temp3(l,:)
-        JC[f] = np.reshape(kron(temp3, Ip), (p, m, n*p), order='F')
+        JC[f] = np.reshape(kron(temp3, Ip), (n*p,p,m), order='F').transpose(1,2,0)
 
     # JD does not change over iterations
     JD = np.zeros((p, m, p*m))
