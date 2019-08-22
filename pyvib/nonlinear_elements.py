@@ -230,7 +230,7 @@ class Polynomial(Nonlinear_Element):
     -------
     fnl = (y₁-y₂)ẏ₁, where y = [y₁, y₂, ẏ₁, ẏ₂]
     exponents = [1,1]
-    w = np.array([[1,-1,0,0], [0,1,0,0]]
+    w = np.array([[1,-1,0,0], [0,1,0,0]])
     """
 
     def __init__(self, exponent, w, structure='Full', **kwargs):

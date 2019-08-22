@@ -338,7 +338,8 @@ def jacobian(x0, system, weight=False):
 
     # calculate Jacobian by filtering an alternative state-space model
     # reshape so first row of JA is the derivative wrt all elements in A for
-    # first time step, first putput, then second output, then next time,...
+    # first time step, first output, then second output, then next time,...
+    # JA: (p,n*n,nts)->(nts,p,n*n)->(nts*p,n*n)
     JA = element_jacobian(x_trans, A_Edhdx, Gdidy, C_Fdjdx, np.arange(n**2))
     JA = JA.transpose((2, 0, 1)).reshape((nts*p, n**2), order='F')
     JA = JA[system.idx_remtrans]  # (p*ns,n**2)
