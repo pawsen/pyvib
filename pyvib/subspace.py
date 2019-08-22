@@ -372,10 +372,12 @@ def subspace(G, covG, freq, n, r, U=None, Y=None, bd_method='nr',
         n = int(input('Input model size'))
 
     # 1.i. Estimate extended observability matrix
-    Or = sqrtCY @ Un[:, :n]  # @ np.diag(np.sqrt(sn[:n]))
+    # NOTE: JP multiply with np.diag(np.sqrt(sn[:n])). ELEC does not
+    Or = sqrtCY @ Un[:, :n] @ np.diag(np.sqrt(sn[:n]))
 
     # 2. Estimate A and C from shift property of Or
-    A, *_ = lstsq(Or[:-p, :], Or[p:, :])
+    A, *_ = lstsq(Or[:-p], Or[p:])
+    # equal to np.linalg.pinv(Or[:-p]) @ Or[p:]
     C = Or[:p, :].copy()
     # Recompute Or from A and C. Or plays a major role in determining B
     # and D, thus J.P. Noel suggest that Or might be recalculated
