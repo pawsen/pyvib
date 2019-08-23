@@ -34,6 +34,11 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
         else:  # given as A,B,C,D
             sys = system
             kwargs['dt'] = 1  # unit sampling
+        # TODO: if dt is not given, we should initialize a ct model
+        # if kwargs.get('dt') is None:
+        #     kwargs['dt'] = None
+        #     print(f'NOTE: {self.__class__.__name__} model initialized as cont. time model. '
+        #           'If you want disc. model, be sure to specify dt when initializing')
 
         super().__init__(*sys, **kwargs)
         self.nlx = NLS()
@@ -62,6 +67,7 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
 
     def set_signal(self, signal):
         self.signal = signal
+        self.dt = 1/signal.fs
         if self.p is None:
             self.p, self.m = signal.p, signal.m
 
@@ -73,7 +79,7 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
         return jacobian(x0, self, weight=weight)
 
 
-def dnlsim2(system, u, t=None, x0=None, **kwargs):
+def nlsim2(system, u, t=None, x0=None, **kwargs):
     """Simulate output of a continuous-time nonlinear system by using the ODE
     solver `scipy.integrate.odeint`.
 
