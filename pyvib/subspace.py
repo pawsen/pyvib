@@ -69,7 +69,8 @@ class Subspace(StateSpace, StateSpaceIdent):
         return A, B, C, D, z, stable
 
     def scan(self, nvec, maxr, optimize=True, method=None, weight=False,
-             info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8, gtol=1e-8):
+             info=2, nmax=50, lamb=None, ftol=1e-8, xtol=1e-8, gtol=1e-8,
+             bd_method='opt'):
 
         F = self.signal.F
         nvec = np.atleast_1d(nvec)
@@ -97,7 +98,7 @@ class Subspace(StateSpace, StateSpaceIdent):
                 if info:
                     print(f"n:{n:3d} | r:{r:3d}")
 
-                self.estimate(n, r)
+                self.estimate(n, r, bd_method=bd_method)
                 # normalize with frequency lines to comply with matlab pnlss
                 cost_sub = self.cost(weight=weight)/F
                 stable_sub = self.stable
@@ -399,7 +400,7 @@ def subspace(G, covG, freq, n, r, U=None, Y=None, bd_method='nr',
         B, D = bd_explicit(A, C, Or, n, r, m, p, RT)
     elif bd_method == 'nr':
         B, D = bd_nr(A, C, G, freq, n, r, m, p, U, Y, weight)
-    else:  # lm optimization
+    else:  # opt: lm optimization
         B, D = bd_opt(A, C, G, freq, n, r, m, p, U, Y, weight)
 
     # Check stability of the estimated model
@@ -604,11 +605,11 @@ def frf_jacobian(x0, A, C, n, m, p, freq, U=None, weight=False, **kwargs):
         tmp[..., n*m:] = np.einsum('ij,iljk->ilk', U, JD)
 
     #tmp.shape = (F, p*_m, npar)
-    tmp = tmp.reshape((F, p*_m, npar), order='F')
+    tmp = tmp.reshape((F, p*_m, npar), order='C')
     if weight is not False:
         tmp = mmul_weight(tmp, weight)
     #tmp.shape = (F*p*_m, npar)
-    tmp = tmp.swapaxes(0, 1).reshape((F*p*_m, npar), order='F')
+    tmp = tmp.swapaxes(0, 1).reshape((F*p*_m, npar), order='C')
 
     # B and D as one parameter vector => concatenate Jacobians
     # We do: J = np.hstack([JB, JD]), jac = np.vstack([J.real, J.imag]), but
@@ -623,6 +624,9 @@ def frf_jacobian(x0, A, C, n, m, p, freq, U=None, weight=False, **kwargs):
 def jacobian(x0, system, weight=False):
     """Returns Jacobian as stacked array
     """
+    # NOTE: It is correct to reshape in 'F' order here. But it also seems to 
+    # be correct to reshape in 'C" order in frf_jacobian.
+    # Something is not entirely correct!
 
     n, m, p, npar = system.n, system.m, system.p, system.npar
     F = len(system.z)
@@ -733,13 +737,14 @@ def jacobian_freq(A, B, C, z):
         # Note that the partial derivative of e(f) w.r.t. B(k,l) is equal to
         # temp2*fOne(n,m,sub2ind([n m],k,l)), and thus
         # JB(:,l,sub2ind([n m],k,l),f) = temp2(:,k)
-        JB[f] = np.reshape(kron(Im, temp2), (m*n,p,m), order='F').transpose(1,2,0)
-
+        JB[f] = np.reshape(kron(Im, temp2), (p, m*n, m),
+                           order='F').transpose(0, 2, 1)
         # Jacobian w.r.t. all elements in C
         # Note that the partial derivative of e(f) w.r.t. C(k,l) is equal to
         # fOne(p,n,sub2ind([p n],k,l))*temp3, and thus
         # JC(k,:,sub2ind([p n],k,l),f) = temp3(l,:)
-        JC[f] = np.reshape(kron(temp3, Ip), (n*p,p,m), order='F').transpose(1,2,0)
+        JC[f] = np.reshape(kron(temp3, Ip), (p, n*p, m),
+                           order='F').transpose(0, 2, 1)
 
     # JD does not change over iterations
     JD = np.zeros((p, m, p*m))
