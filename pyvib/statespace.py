@@ -128,7 +128,7 @@ class StateSpace():
             A, B, C, D = system
             dt = self.dt
         else:
-            raise ValueError('Cannot copy the given system')
+            raise ValueError(f'Cannot copy the given system {type(system)}')
         self.A = A
         self.B = B
         self.C = C
