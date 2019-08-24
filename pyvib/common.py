@@ -78,33 +78,40 @@ def prime_factor(n):
         yield n
 
 
-def dsample(y, n, zero_phase=False):
+def dsample(y, q, zero_phase=True):
     """Low-pass filtering and downsampling.
 
-    The input can be downsampled(ie. u[::n]) as it does mot contains higher
-    harmonics, but y needs to be low-pass filtered n order to avoid aliasing.
+    The input can be downsampled(ie. u[::q]) as it does mot contains higher
+    harmonics, but y needs to be low-pass filtered in order to avoid aliasing.
 
-    If `zero_phase` is `False`, the first period is removed due to filter-edge
-    effects. If it is True `filtfit` is used for decimate and there will be
-    small edge effects in first and last period
+    If `zero_phase` is ``True``, phase shift will be prevented by shifting the
+    output back by the filter's group delay. There will be small edge effects
+    in first and last period. If ``False`` the first period is removed due to
+    filter-edge effects.
+
+    NOTE: There seems to some issues for `zero_phase=False`. Use `True` unless
+    you know what you are doing. Probably related to phase shift.
 
     See :func:`scipy.signal.decimate`
 
-    INPUT:
-        y: ndarray(Nt,P,R,p)
-        n: downsample factor
-        zero_phase: bool, default False
-    RETURN:
-      y: (N,p,R,P-1) decimated
+    Parameters
+    ----------
+    y: ndarray(Nt,p,P,R)
+    n: int, downsample factor
+    zero_phase: bool, default True
+
+    Returns
+    -------
+    y: (N,p,R,P) decimated signal
 
     """
     Nt, p, R, P = y.shape
     y = np.moveaxis(y, 3, 1).reshape(Nt*P, p, R, order='F')
 
     # prime factor decomposition.
-    drate = list(prime_factor(n))
+    drate = list(prime_factor(q))
 
-    # actually all this is not necessary. Because: N = Nt/n
+    # actually all this is not necessary. Because: N = Nt/q
     # length of decimated signal. Found from matlab help of decimate
     x = Nt*P
     for factor in drate:
@@ -117,8 +124,9 @@ def dsample(y, n, zero_phase=False):
     N = int(N)
 
     # zero_phase = True results in small edge effects in first and last
-    # period. Instead we use lfilter, resulting in large edge effects in first
-    # period. We discard this period
+    # period. Instead we can use lfilter, resulting in large edge effects in
+    # first period. But even if we discard this period, there will still be
+    # a phase shift
     for factor in drate:
         y = decimate(y, q=factor, ftype='fir', axis=0, zero_phase=zero_phase)
 
