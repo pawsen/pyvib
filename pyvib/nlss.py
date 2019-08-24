@@ -49,10 +49,14 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
         """Add nonlinear elements"""
         # active elements can only be set when the system size is known.
         # for fnsi this happens when we do subspace ID
-        if nlx is not None:
-            self.nlx = NLS(nlx)
-        if nly is not None:
-            self.nly = NLS(nly)
+        # prevent wrapping nls in nls.
+        if isinstance(nlx, NLS):
+            nlx = nlx.nls
+        self.nlx = NLS(nlx)
+        if isinstance(nly, NLS):
+            nly = nly.nls
+        self.nly = NLS(nly)
+
         # only set NLs if system is defined
         if self.n is not None:
             self._set_active()

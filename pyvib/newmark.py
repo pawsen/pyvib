@@ -21,8 +21,9 @@ class Newmark():
         self.M = M
         self.C = C
         self.K = K
-        if nls is None:
-            nls = NLS()
+        # prevent wrapping nls in nls.
+        if isinstance(nls, NLS):
+            nls = nls.nls
         self.nls = NLS(nls)
         if gtype is None:
             self.gamma = 1/2

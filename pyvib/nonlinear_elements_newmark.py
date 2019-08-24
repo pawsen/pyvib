@@ -41,6 +41,9 @@ class NLS(object):
             self.add(nls)
 
     def add(self, nls):
+        # prevent wrapping NLS, ie NLS(NLS(nls)), etc
+        if isinstance(nls, NLS):
+            nls = nls.nls
         if not isinstance(nls, list):
             nls = [nls]
         for nl in nls:
