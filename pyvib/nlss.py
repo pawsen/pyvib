@@ -33,7 +33,8 @@ class NLSS(NonlinearStateSpace, StateSpaceIdent):
             kwargs['dt'] = sys[0].dt
         else:  # given as A,B,C,D
             sys = system
-            kwargs['dt'] = 1  # unit sampling
+            if kwargs.get('dt') is None:
+                kwargs['dt'] = 1  # unit sampling
         # TODO: if dt is not given, we should initialize a ct model
         # if kwargs.get('dt') is None:
         #     kwargs['dt'] = None

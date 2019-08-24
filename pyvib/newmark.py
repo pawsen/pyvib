@@ -23,7 +23,7 @@ class Newmark():
         self.K = K
         if nls is None:
             nls = NLS()
-        self.nls = nls
+        self.nls = NLS(nls)
         if gtype is None:
             self.gamma = 1/2
             self.beta = 1/4

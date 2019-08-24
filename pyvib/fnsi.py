@@ -5,11 +5,11 @@ import numpy as np
 from numpy.fft import fft
 from scipy.linalg import norm, solve
 
-from .helper.modal_plotting import plot_frf, plot_stab
+# from .helper.modal_plotting import plot_frf, plot_stab
 from .lti_conversion import discrete2cont
 from .nlss import NLSS
 from .statespace import NonlinearStateSpace, StateSpaceIdent
-from .subspace import modal_list, subspace
+from .subspace import subspace
 
 
 class FNSI(NLSS, NonlinearStateSpace, StateSpaceIdent):
@@ -100,7 +100,7 @@ class FNSI(NLSS, NonlinearStateSpace, StateSpaceIdent):
 
         fs = 1/self.dt
         if fmin is not None and fmax is not None:
-            f1 = int(np.floor(fmin/fs * npp))
+            f1 = int(np.floor(fmin/fs * npp)) + 1
             f2 = int(np.ceil(fmax/fs * npp))
             self.lines = np.arange(f1, f2+1)
         else:
@@ -210,7 +210,7 @@ class FNSI(NLSS, NonlinearStateSpace, StateSpaceIdent):
         # take the sign(in w) into account. See the - in knl calc.
         for i, nl in enumerate(self.nlx.nls):
             # each nonzero results in a row in idx
-            idx = np.argwhere(nl.w)
+            idx = np.argwhere(np.atleast_2d(nl.w))
             inl1[i] = idx[0,1]
             if idx.shape[0] == 1:  # connected to ground
                 inl2[i] = -1
