@@ -6,7 +6,7 @@ from numpy.fft import fft
 from scipy.interpolate import interp1d
 
 from .common import mmul_weight
-from .polynomial import multEdwdx, nl_terms, poly_deriv
+from .polynomial import multEdwdx, nl_terms, poly_deriv, combinations, select_active
 from .statespace import NonlinearStateSpace, StateSpaceIdent
 
 
