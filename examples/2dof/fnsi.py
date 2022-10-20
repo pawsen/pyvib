@@ -13,7 +13,7 @@ from pyvib.fnsi import FNSI
 from pyvib.modal import modal_ac, frf_mkc
 from pyvib.helper.modal_plotting import (plot_knl, plot_frf, plot_svg)
 from pyvib.frf import periodic
-from pyvib.fnsi import NL_force, NL_polynomial, NL_spline
+from pyvib.nlforce import NL_force, NL_polynomial, NL_spline
 
 # Parameters for 2dof model
 from parameters import par

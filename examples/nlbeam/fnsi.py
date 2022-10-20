@@ -8,7 +8,7 @@ from collections import namedtuple
 
 from pyvib.signal import Signal
 from pyvib.fnsi import FNSI
-from pyvib.fnsi import NL_force, NL_polynomial
+from pyvib.nlforce import NL_force, NL_polynomial
 from pyvib.modal import modal_ac, frf_mkc
 from pyvib.helper.modal_plotting import (plot_modes, plot_knl, plot_frf)
 from pyvib.frf import periodic

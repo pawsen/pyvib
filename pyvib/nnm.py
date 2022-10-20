@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.linalg import eigvals, lstsq, norm, solve
 
-from .common import modal_properties_MKC
+from .modal import modal_mkc
 from .helper.plotting import Anim
 from .newmark import Newmark
 
@@ -75,7 +75,7 @@ class NNM():
 
         ndof = self.ndof
         # mode shape estimate
-        sd = modal_properties_MKC(self.M, self.K)
+        sd = modal_mkc(self.M, self.K)
         w0 = sd['wn'][self.mode]*2*np.pi
         X0 = sd['realmode'][self.mode]
         scale_alpha = np.sqrt(2*self.scale / (X0 @ self.K @ X0))
