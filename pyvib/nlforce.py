@@ -44,6 +44,7 @@ class NL_force(object):
         return nldofs
 
     def force(self, x, xd):
+        """Nonlinear force"""
 
         if x.ndim == 1:
             ndof, = x.shape

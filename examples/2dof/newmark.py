@@ -8,7 +8,7 @@ import pickle
 import parameters
 
 from pyvib.nlforce import NL_force, NL_polynomial
-from pyvib.forcing import sineForce, randomPeriodic, sineSweep, toMDOF
+from pyvib.forcing import sine, multisine, sinesweep, toMDOF
 from pyvib.newmark import newmark_beta_nl as newmark_beta
 
 plot = True
@@ -44,14 +44,15 @@ x0, y0 = 0, 0
 ndof = M.shape[0]
 # get external forcing
 if ftype == 'multisine':
-    u, t = randomPeriodic(vrms, fs, f1, f2, nsper, nper)
+    u, lines, freqs, t = multisine(f1=f1, f2=f2, N=nsper, P=nper)
+
 elif ftype == 'sweep':
-    u, t, finst = sineSweep(vrms, fs, f1, f2, vsweep, nper, inctype)
+    u, t, finst = sinesweep(vrms, fs, f1, f2, vsweep, nper, inctype)
     # we dont use the first value, as it is not repeated when the force is
-    # generated. This is taken care of in randomPeriodic.
+    # generated. This is taken care of in multisine.
     nsper = (len(u)-1) // nper
 elif ftype == 'sine':
-    u, t = sineForce(vrms, f=f1, fs=fs, ns=nsper)
+    u, t = sine(vrms, f=f1, fs=fs, ns=nsper)
 else:
     raise ValueError('Wrong type of forcing', ftype)
 fext = toMDOF(u, ndof, fdof)
@@ -62,8 +63,8 @@ x, xd, xdd = newmark_beta(M, C, K, x0, y0, dt, fext, nl, sensitivity=False)
 
 plt.figure()
 plt.clf()
-plt.plot(t, x[0], '-k', label=r'$x_1$')
-plt.plot(t, x[1], '-r', label=r'$x_2$')
+plt.plot(t, x[:,0], '-k', label=r'$x_1$')
+plt.plot(t, x[:,1], '-r', label=r'$x_2$')
 plt.xlabel('Time (t)')
 plt.ylabel('Displacement (m)')
 plt.title('Force type: {}, periods:{:d}'.format(ftype, nper))

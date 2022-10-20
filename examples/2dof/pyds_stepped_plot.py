@@ -6,7 +6,10 @@ import sys
 import numpy as np
 from matplotlib import pyplot as plt
 import pickle
-from matplotlib2tikz import save as tikz_save
+try:
+    from matplotlib2tikz import save as tikz_save
+except:
+    pass
 
 savefig = True
 
@@ -65,7 +68,10 @@ fnfrc = plt.gcf()
 
 def save(fig, filename):
     fig.savefig(filename + '.pdf')
-    tikz_save(filename + '.tikz', figure=fig, show_info=False, strict=True)
+    try:
+        tikz_save(filename + '.tikz', figure=fig, show_info=False, strict=True)
+    except:
+        pass
 
 if savefig:
     path = abspath + 'plots/'

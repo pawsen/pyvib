@@ -7,7 +7,7 @@ from scipy import io
 
 
 from pyvib.newmark import newmark_beta_nl as newmark_beta
-from pyvib.forcing import sineForce, randomPeriodic, sineSweep, toMDOF
+from pyvib.forcing import sine, multisine, sinesweep, toMDOF
 from pyvib.nlforce import NL_force, NL_polynomial
 from collections import namedtuple
 import pickle
@@ -48,14 +48,14 @@ xd0 = 0
 # get external forcing
 if ftype == 'multisine':
     nsper = 1
-    u, t = randomPeriodic(vrms,fs, f1,f2,nsper, nper)
+    u, t = multisine(vrms,fs, f1,f2,nsper, nper)
 elif ftype == 'sweep':
-    u, t, finst = sineSweep(vrms,fs, f1,f2,vsweep, nper, inctype)
+    u, t, finst = sinesweep(vrms,fs, f1,f2,vsweep, nper, inctype)
     # we dont use the first value, as it is not repeated when the force is
-    # generated. This is taken care of in randomPeriodic.
+    # generated. This is taken care of in multisine.
     nsper = (len(u)-1) // nper
 elif ftype == 'sine':
-    u, t = sineForce(vrms, f1, fs, nsper)
+    u, t = sine(vrms, f1, fs, nsper)
 else:
     raise ValueError('Wrong type of forcing', ftype)
 fext = toMDOF(u, ndof, fdof)
@@ -66,7 +66,7 @@ Nm = namedtuple('Nm', 'y yd ydd u t finst fs')
 x, xd, xdd = newmark_beta(M, C, K, x0, xd0, dt, fext, nl, sensitivity=False)
 sweep1 = Nm(x,xd,xdd,u,t,finst,fs)
 
-u, t, finst = sineSweep(vrms,fs, f2,f1,-vsweep, nper, inctype)
+u, t, finst = sinesweep(vrms,fs, f2,f1,-vsweep, nper, inctype)
 fext = toMDOF(u, ndof, fdof)
 x, xd, xdd = newmark_beta(M, C, K, x0, xd0, dt, fext, nl, sensitivity=False)
 sweep2 = Nm(x,xd,xdd,u,t,finst,fs)

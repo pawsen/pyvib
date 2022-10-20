@@ -14,7 +14,7 @@ def force(A, f, ndof, fdof):
         ns = round((tf-t0)/dt)
         fs = 1/dt
 
-        u,_ = sineForce(A, f=f, fs=fs, ns=ns, phi_f=0)
+        u,_ = sine(A, f=f, fs=fs, ns=ns, phi_f=0)
         fext = toMDOF(u, ndof, fdof)
         return fext
     return wrapped_func
@@ -23,7 +23,7 @@ def force(A, f, ndof, fdof):
 
 
 def sinesweep(amp, fs, f1, f2, vsweep, nrep=1, inctype='lin', t0=0):
-    """Do a linear or logarithmic sinus sweep excitation.
+    """Do a linear or logarithmic sine sweep excitation.
 
     For a reverse sweep, swap f1 and f2 and set a negative sweep rate.
 
@@ -61,7 +61,7 @@ def sinesweep(amp, fs, f1, f2, vsweep, nrep=1, inctype='lin', t0=0):
     # Because we want to enforce the given fs, arange is used instead of
     # linspace. This means that we might not include tend in t (which would be
     # the case with linspace), but for that we get the desired fs.
-    ns = np.floor((tend-t0)*fs)
+    ns = int(np.floor((tend-t0)*fs))
     t = np.arange(0, ns+1)/fs
     # t = np.linspace(t0, tend, ns +1)
 
@@ -288,8 +288,9 @@ def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full', rms=1, ngr
     return u, _lines, freq
 
 
-def sineForce(A, f=None, omega=None, t=None, fs=None, ns=None, phi_f=0):
-    """
+def sine(A, f=None, omega=None, t=None, fs=None, ns=None, phi_f=0):
+    """Signle sine excitation
+
     Parameters
     ----------
     A: float
@@ -298,10 +299,6 @@ def sineForce(A, f=None, omega=None, t=None, fs=None, ns=None, phi_f=0):
         Forcing frequency in (Hz/s)
     t: ndarray
         Time array
-    n: int
-        Number of DOFs
-    fdofs: int or ndarray of int
-        DOF location of force(s)
     phi_f: float
         Phase in degree
     """
@@ -318,7 +315,15 @@ def sineForce(A, f=None, omega=None, t=None, fs=None, ns=None, phi_f=0):
 
 
 def toMDOF(u, ndof, fdof):
+    """Convert a vector to multidof
 
+    u: ndarray
+        forcing
+    ndof: int
+        Number of DOFs
+    fdof: int or ndarray of int
+        DOF location of force(s)
+    """
     fdofs = np.atleast_1d(np.asarray(fdof))
     if any(fdofs) > ndof-1:
         raise ValueError('Some fdofs are greater than system size(n-1), {}>{}'.

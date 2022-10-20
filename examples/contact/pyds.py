@@ -44,7 +44,7 @@ if ftype == 'multisine':
     f1 = 1e-3/2/np.pi
     f2 = 10/2/np.pi
     fs = 20*f2
-    u, t_ran = forcing.randomPeriodic(vrms,fs, f1,f2,ns=ns, nrep=nrep)
+    u, t_ran = forcing.multisine(vrms,fs, f1,f2,ns=ns, nrep=nrep)
     saveacc = False
     finst = 0
 elif ftype == 'sweep':
@@ -55,12 +55,12 @@ elif ftype == 'sweep':
     fs = 40*f2
     inctype='log'
     inctype ='lin'
-    u, t_ran, finst = forcing.sineSweep(vrms,fs, f1,f2,vsweep, nrep, inctype)
+    u, t_ran, finst = forcing.sinesweep(vrms,fs, f1,f2,vsweep, nrep, inctype)
     # we dont use the first value, as it is not repeated when the force is
-    # generated. This is taken care of in randomPeriodic.
+    # generated. This is taken care of in multisine.
     ns = (len(u)-1) // nrep
 elif ftype == 'sine':
-    u, t_ran = forcing.sineForce(vrms, f1, fs, nsper=ns)
+    u, t_ran = forcing.sine(vrms, f1, fs, nsper=ns)
 else:
     raise ValueError('Wrong type of forcing', ftype)
 

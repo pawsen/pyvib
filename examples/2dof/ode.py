@@ -6,7 +6,7 @@ import numpy as np
 from scipy.integrate import odeint
 from scipy.interpolate import interp1d
 import parameters
-from pyvib.forcing import randomPeriodic
+from pyvib.forcing import multisine
 
 plot = True
 
@@ -37,13 +37,14 @@ par = parameters.par
 pars = [par[key] for key in ['m1', 'm2', 'c1', 'c2', 'k1', 'k2', 'k3', 'mu1', 'mu2']]
 pars = tuple(pars)
 
-fs = 20
-ns = 1000
-nrep = 2
+fs = 100
+ns = 100
+nrep = 20
 f1 = 0.5/2/np.pi
 f2 = 1.5/2/np.pi
 vrms = 2.0
-u,t = randomPeriodic(vrms, fs, f1, f2, ns, nrep=nrep)
+u, lines, freq, t = multisine(f1=f1,fs=fs, N=ns, P=nrep, rms=vrms)
+
 force = interp1d(t, u, kind='linear')
 t = t[:-1]
 

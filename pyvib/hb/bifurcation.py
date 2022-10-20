@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.linalg import inv, lstsq, norm, solve, svd
 
-from ..forcing import sineForce, toMDOF
+from ..forcing import sine, toMDOF
 
 
 class Bifurcation(object):
@@ -82,7 +82,7 @@ class Fold(Bifurcation):
 
             omega2 = omega/nu
             t = self.hb.assemblet(omega2)
-            u, _ = sineForce(f_amp, omega=omega, t=t)
+            u, _ = sine(f_amp, omega=omega, t=t)
             force = toMDOF(u, n, self.fdofs)
             A = self.hb.assembleA(omega2)
 
@@ -165,7 +165,7 @@ class NS(Bifurcation):
             omega = omega + dNR[nz]
             omega2 = omega/nu
             t = self.hb.assemblet(omega2)
-            u, _ = sineForce(f_amp, omega=omega, t=t)
+            u, _ = sine(f_amp, omega=omega, t=t)
             force = toMDOF(u, n, self.fdofs)
             A = self.hb.assembleA(omega2)
             J_z = self.hb.hjac(z, A)
@@ -262,7 +262,7 @@ class BP(Bifurcation):
             omega = omega + dNR[nz]
             omega2 = omega/nu
             t = self.hb.assemblet(omega2)
-            u, _ = sineForce(f_amp, omega=omega, t=t)
+            u, _ = sine(f_amp, omega=omega, t=t)
             force = toMDOF(u, n, self.fdofs)
             A = self.hb.assembleA(omega2)
             Jz = self.hb.hjac(z, A)

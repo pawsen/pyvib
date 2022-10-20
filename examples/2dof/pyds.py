@@ -8,11 +8,11 @@ from collections import namedtuple
 import pickle
 import time
 
-from pyvib.forcing import sineForce, randomPeriodic, sineSweep
+from pyvib.forcing import sine, multisine, sinesweep
 import parameters
 par = parameters.par
 
-savedata = True
+savedata = False
 
 # The vrms (in N) values are chosen as
 # vrms = 0.01, linear
@@ -22,17 +22,19 @@ vrms = 0.01
 y10, y20, v10, v20 = 0, 0, 0, 0
 
 ftype = 'multisine'
-ftype = 'sweep'
+# ftype = 'sweep'
 
 # get external forcing
 finst = []
 if ftype == 'multisine':
     ns = 25000
-    nrep = 9
+    nrep = 20
     f1 = 0/2/np.pi
     f2 = 20/2/np.pi
     fs = 20*f2
-    u, t_ran = randomPeriodic(vrms,fs, f1,f2,ns=ns, nrep=nrep)
+    # vrms = 2
+    u, lines, freq, t_ran = multisine(f1=f1, N=ns, P=nrep, rms=vrms)
+
     saveacc = False
 elif ftype == 'sweep':
     saveacc = True
@@ -42,14 +44,14 @@ elif ftype == 'sweep':
     fs = 20*f2
     vsweep = 0.005
     inctype ='lin'
-    # change sweep-direction by: sineSweep(vrms,fs, f2,f1,-vsweep, nper, inctype)
-    u, t_ran, finst = sineSweep(vrms,fs, f1,f2,vsweep, nrep, inctype)
+    # change sweep-direction by: sinesweep(vrms,fs, f2,f1,-vsweep, nper, inctype)
+    u, t_ran, finst = sinesweep(vrms,fs, f1,f2,vsweep, nrep, inctype)
     # we dont use the first value, as it is not repeated when the force is
-    # generated. This is taken care of in randomPeriodic.
+    # generated. This is taken care of in multisine.
     ns = (len(u)-1) // nrep
 elif ftype == 'sine':
     ns = 10000
-    u, t_ran = sineForce(vrms, f1, fs, nsper=ns)
+    u, t_ran = sine(vrms, f1, fs, nsper=ns)
 else:
     raise ValueError('Wrong type of forcing', ftype)
 

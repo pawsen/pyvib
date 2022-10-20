@@ -6,7 +6,7 @@ from scipy.linalg import block_diag, kron, lstsq, norm, solve
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import lsmr as splsmr
 
-from ..forcing import sineForce, toMDOF
+from ..forcing import sine, toMDOF
 from ..helper.plotting import Anim
 from .bifurcation import BP, NS, Fold
 from .hbcommon import fft_coeff, hb_components, hb_signal, ifft_coeff
@@ -111,7 +111,7 @@ class HB():
 
         t = self.assemblet(omega2)
         nt = len(t)
-        u, _ = sineForce(f_amp, omega=omega, t=t)
+        u, _ = sine(f_amp, omega=omega, t=t)
         force = toMDOF(u, n, fdofs)
 
         # Assemble A, describing the linear dynamics. eq (20)
@@ -323,7 +323,7 @@ class HB():
             omega2 = omega/nu
             t = self.assemblet(omega2)
             A = self.assembleA(omega2)
-            u, _ = sineForce(f_amp, omega=omega, t=t)
+            u, _ = sine(f_amp, omega=omega, t=t)
             force = toMDOF(u, n, fdofs)
 
             it_NR = 1
@@ -355,7 +355,7 @@ class HB():
                 omega2 = omega/nu
                 V = (V-dV) / norm(V-dV)
                 t = self.assemblet(omega2)
-                u, _ = sineForce(f_amp, omega=omega, t=t)
+                u, _ = sine(f_amp, omega=omega, t=t)
                 force = toMDOF(u, n, fdofs)
 
                 A = self.assembleA(omega2)
