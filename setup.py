@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from pyvib import __version__
 
 def readme():
@@ -10,6 +10,9 @@ def readme():
 
 setup(name='pyvib',
       version=__version__,
+      # use find_packages to include subfolders with a __init__.py
+      # https://stackoverflow.com/a/43254082
+      packages=find_packages(),
       description='Nonlinear modeling for python',
       long_description=readme(),
       classifiers=[],
@@ -18,7 +21,6 @@ setup(name='pyvib',
       author='Paw Møller',
       author_email='pawsen@gmail.com',
       license='BSD',
-      packages=['pyvib'],
       zip_safe=False,
       install_requires=[
           'numpy',
