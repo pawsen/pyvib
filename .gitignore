@@ -17,3 +17,5 @@ plots/
 !/examples/pnlss/data/
 docs/_build/
 *.mat
+/.direnv/
+/result

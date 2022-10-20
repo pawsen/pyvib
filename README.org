@@ -26,10 +26,21 @@ This library requires numpy, scipy and python3.7. E.g. on Linux:
   pip install numpy, scipy
 #+END_SRC
 
+** nixos
+
+Use =flake.nix= to setup a development env on nix.
+
+Use either
+: nix develop
+to an environment with black/isort/pyright
+
+or
+: nix build
+to get a link to the package in =./result=
 
 ** Useful Links
-Although this pakage does not have anything to do with control, state space
-models are ofthen used for this. See these packages for more(taken from harold)
+Although this package does not have anything to do with control, state space
+models are often used for this. See these packages for more(taken from harold)
 
 - There is already an almost-matured control toolbox which is led by
   Richard Murray et al. and it can perform
