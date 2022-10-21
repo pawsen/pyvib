@@ -19,3 +19,6 @@ docs/_build/
 *.mat
 /.direnv/
 /result
+/_build/
+/pyvib.egg-info/
+build/
