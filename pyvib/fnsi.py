@@ -8,11 +8,11 @@ from scipy.linalg import norm, solve
 # from .helper.modal_plotting import plot_frf, plot_stab
 from .lti_conversion import discrete2cont
 from .nlss import NLSS
-from .statespace import NonlinearStateSpace, StateSpaceIdent
+from .statespace import NonlinearStateSpace, StateSpaceOptimization
 from .subspace import subspace
 
 
-class FNSI(NLSS, NonlinearStateSpace, StateSpaceIdent):
+class FNSI(NLSS, NonlinearStateSpace, StateSpaceOptimization):
     """Identify nonlinear subspace model in frequency domain
 
     x(t+1) = A x(t) + B u(t) + E g(y(t),u(t))

@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""State space formulations
+"""
 
+from abc import abstractmethod
 from copy import deepcopy
 
 import numpy as np
 from numpy.fft import fft
+from numpy.typing import NDArray
 from scipy.optimize import least_squares
 from scipy.signal import StateSpace as spStateSpace
 from scipy.signal.lti_conversion import abcd_normalize
 from scipy.signal.ltisys import dlsim
+from typing import Optional, Union, Callable
 
 from .common import lm, mmul_weight, weightfcn
 from .lti_conversion import discrete2cont, ss2phys
 from .modal import modal_ac
+# from .subspace import Subspace
 
 
 def _atleast_2d_or_none(arg):
@@ -35,8 +41,12 @@ class StateSpace():
         sys = system
         dt = kwargs.pop('dt', True)
         super().__init__(**kwargs)
-        self._A, self._B, self._C, self._D = [None]*4
-        self.Ac, self.Bc = [None]*2
+        self._A: NDArray = None
+        self._B: NDArray = None
+        self._C: NDArray = None
+        self._D: NDArray = None
+        self.Ac: NDArray = None
+        self.Bc: NDArray = None
         self.dt = dt
         # flag = False
         if len(system) == 1:  # TODO fix and isinstance(system[0], StateSpace):
@@ -140,9 +150,11 @@ class StateSpace():
         return self.A.shape[0], self.B.shape[1], self.C.shape[0]
 
     def _get_system(self):
+        """Return the model matrices as a tuple including sampling time"""
         return (self.A, self.B, self.C, self.D, self.dt)
 
     def extract(self, x0):
+        """Return the model matrices from a 1d array (flattened array)"""
         n, m, p = self.n, self.m, self.p
         A = x0.flat[:n**2].reshape((n, n))
         B = x0.flat[n**2 + np.r_[:n*m]].reshape((n, m))
@@ -151,7 +163,7 @@ class StateSpace():
         return A, B, C, D
 
     def flatten(self):
-        """Returns the state space as flattened array"""
+        """Returns the model as a flattened array"""
         n, m, p = self.n, self.m, self.p
         npar = n**2 + n*m + p*n + p*m
 
@@ -161,6 +173,7 @@ class StateSpace():
         x0[n**2 + n*m + np.r_[:n*p]] = self.C.ravel()
         x0[n**2 + n*m + n*p:] = self.D.ravel()
         return x0
+
 
     def transient(self, T1=None, T2=None):
         """Transient handling. t1: periodic, t2: aperiodic
@@ -188,15 +201,22 @@ class StateSpace():
             self.without_T2 = np.s_[:ns]
 
     def output(self, u, t=None, x0=None):
+        """Return the response of the discrete-time system to input `u` without
+        transient handling.
+
+        See :func:`scipy.signal.dlsim` for details.
+
+        """
+
         system = self._get_system()
         return dlsim(system, u, t=t, x0=x0)
 
     def simulate(self, u, t=None, x0=None, T1=None, T2=None):
-        """
-        Return the response of the discrete-time system to input `u` with
+        """Return the response of the discrete-time system to input `u` with
         transient handling.
 
         See :func:`scipy.signal.dlsim` for details.
+
         """
 
         # Number of samples
@@ -236,7 +256,7 @@ class StateSpace():
 
     @property
     def modal(self, update=False):
-        """Calculate modal properties using cont. time matrices"""
+        """Calculate modal properties using continuous time matrices"""
         if self.Ac is None or update is True:
             self.to_cont()
         return modal_ac(self.Ac, self.C)
@@ -378,10 +398,15 @@ class NonlinearStateSpace(StateSpace):
         x0[n*(p+m+n)+p*m+ne + np.r_[:nf]] = self.F.flat[yact]
         return x0
 
+class StateSpaceOptimization():
+    """Optimize an estimated (nonlinear) state space model
 
-class StateSpaceIdent():
+    This requires the jacobian of the state space matrices.
+    """
+
     def __init__(self):
         self._weight = None
+        self._cost_normalize: Optional[Union[NDArray,Callable, float]] = 1  # None
         if not hasattr(self, '_cost_normalize'):
             self._cost_normalize = 1
 
@@ -396,7 +421,8 @@ class StateSpaceIdent():
 
     def optimize(self, method=None, weight=False, info=2, nmax=50, lamb=None,
                  ftol=1e-12, xtol=1e-12, gtol=1e-12, copy=False):
-        """Optimize the estimated the nonlinear state space matrices"""
+        """Optimize the estimated nonlinear state space matrices"""
+
         if weight is True:
             weight = self.weight
 
@@ -423,7 +449,7 @@ class StateSpaceIdent():
                      nmax=nmax, lamb=lamb, ftol=ftol, xtol=xtol, gtol=gtol,
                      cost_normalize=self._cost_normalize, kwargs=kwargs)
         else:
-            res = least_squares(self.costfcn, x0, self.jacobian, method='lm',
+            res = least_squares(self.costfcn, x0=x0, jac=self.jacobian, method='lm',
                                 x_scale='jac', kwargs=kwargs)
 
         if copy:
@@ -482,7 +508,6 @@ def costfcn_time(x0, system, weight=False):
     # T2 = system.T2
     # p is the actual number of output in the signal, not the system output
     R, p, npp = system.signal.R, system.signal.p, system.signal.npp
-    # p = system.p
     nfd = npp//2
     # without_T2 = system.without_T2
 

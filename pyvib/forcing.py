@@ -3,7 +3,7 @@
 
 import numpy as np
 from numpy.fft import ifft
-
+from typing import Optional
 
 """
 Example of a closure-function. See also partial from ...
@@ -22,7 +22,8 @@ def force(A, f, ndof, fdof):
 """
 
 
-def sinesweep(amp, fs, f1, f2, vsweep, nrep=1, inctype='lin', t0=0):
+def sinesweep(amp:float, fs:float, f1:float, f2:float, vsweep:float, nrep:int=1,
+              inctype:str='lin', t0:float=0):
     """Do a linear or logarithmic sine sweep excitation.
 
     For a reverse sweep, swap f1 and f2 and set a negative sweep rate.
@@ -151,7 +152,7 @@ def multisine_time(f1, f2, N, ms_type='full'):
     return fex, lines
 
 
-def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full', rms=1, ngroup=4):
+def multisine(f1: float=0, f2:Optional[float]=None, N:int=1024, fs:Optional[float]=None, R:int=1, P:int=1, lines='full', rms:float=1, ngroup:int=4):
     """Random periodic excitation
 
     Generates R realizations of a zero-mean random phase multisine with
@@ -183,7 +184,7 @@ def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full', rms=1, ngr
     rms : float, optional
         rms(amplitude) of the generated signals. default = 1. Note that since
         the signal is zero-mean, the std and rms is equal.
-    ngroup : int, optional
+    ngroup : int, optional, default = 4
         In case of ftype = oddrandom, 1 out of ngroup odd lines is discarded.
 
     Returns
@@ -284,8 +285,9 @@ def multisine(f1=0, f2=None, N=1024, fs=None, R=1, P=1, lines='full', rms=1, ngr
     # when the generated signal is repeated.
     u = np.tile(u, (1, P))  # generate P periods
     freq = np.arange(N)/N*fs
+    t = np.arange(N*P)/fs
 
-    return u, _lines, freq
+    return u, _lines, freq, t
 
 
 def sine(A, f=None, omega=None, t=None, fs=None, ns=None, phi_f=0):

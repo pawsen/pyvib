@@ -52,6 +52,7 @@
           format = "setuptools";
           src = ./.;
           inherit buildInputs;
+          doCheck = false;
         };
       in rec {
         inherit defaultPackage;

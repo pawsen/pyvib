@@ -153,7 +153,7 @@ def filt(self, lowcut, highcut, order=3):
     return signal.filtfilt(b, a, self.y)
 
 
-class Signal2(object):
+class Signal_legacy(object):
     """ Holds common properties for a signal
     """
 

@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Generalized nonlinear state space models.
+
+Wiith PNLSS the nonlinearity can only be polynomial. For NSSS models there's no
+restriction as long the nonlinearity is implemented in the NLS class.
+"""
+
 import numpy as np
 from numpy.linalg import norm
 from scipy.integrate import odeint
 from scipy.interpolate import interp1d
 
 from .nonlinear_elements import NLS
-from .statespace import NonlinearStateSpace, StateSpaceIdent
+from .statespace import NonlinearStateSpace, StateSpaceOptimization
 
 # http://www.brendangregg.com/books.html
 
 
-class NLSS(NonlinearStateSpace, StateSpaceIdent):
+class NLSS(NonlinearStateSpace, StateSpaceOptimization):
     """Nonlinear Time Invariant system in state-space form.
 
     x(t+1) = A x(t) + B u(t) + E g(x(t),y(t),u(t))

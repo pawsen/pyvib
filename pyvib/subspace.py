@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Methods for estimating a linear state-space model from Frequency Response
+Function (or Matrix)
+
+"""
+
+
 import numpy as np
 from numpy import kron
 # qr(mode='r') returns r in economic form. This is not the case for scipy
@@ -15,13 +21,13 @@ from .common import (matrix_square_inv, mmul_weight, normalize_columns,
 from .helper.modal_plotting import plot_subspace_info, plot_subspace_model
 from .lti_conversion import is_stable, ss2frf
 from .modal import modal_ac
-from .statespace import StateSpace, StateSpaceIdent
+from .statespace import StateSpace, StateSpaceOptimization
 
 # TODO extract_model should be refactored so the method from SS can be used
 # right now it is not clear if it should be used at all
 
 
-class Subspace(StateSpace, StateSpaceIdent):
+class Subspace(StateSpace, StateSpaceOptimization):
 
     def __init__(self, signal, *system, **kwargs):
         self.signal = signal

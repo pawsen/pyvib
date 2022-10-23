@@ -74,7 +74,7 @@ fs = 1        # normalized sampling rate
 # get predictable random numbers. https://dilbert.com/strip/2001-10-25
 np.random.seed(10)
 # shape of u from multisine: (R,P*npp)
-u, lines, freq = multisine(N=npp, P=P, R=R, lines=kind, rms=RMSu)
+u, lines, freq, t = multisine(N=npp, P=P, R=R, lines=kind, rms=RMSu)
 # if multiple input is required, this will copy u m times
 
 # Transient: Add one period before the start of each realization. To generate
@@ -125,6 +125,7 @@ linmodel = Subspace(sig)
 # get best model on validation data
 models, infodict = linmodel.scan(nvec, maxr, weight=weight)
 l_errvec = linmodel.extract_model(yval, uval)
+
 # or estimate the subspace model directly
 linmodel.estimate(2, 5, weight=weight)  # best model, when noise weighting is used
 linmodel.optimize(weight=weight)
@@ -223,8 +224,12 @@ plt.title('Selection of the best model on a separate data set')
 figs['pnlss_path'] = (plt.gcf(), plt.gca())
 
 # subspace plots
-figs['subspace_optim'] = linmodel.plot_info()
-figs['subspace_models'] = linmodel.plot_models()
+# fails if we didn't do subspace scanning
+try:
+    figs['subspace_optim'] = linmodel.plot_info()
+    figs['subspace_models'] = linmodel.plot_models()
+except:
+    pass
 
 if savefig:
     for k, fig in figs.items():

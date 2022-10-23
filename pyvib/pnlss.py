@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+"""A collection of classes and functions for modeling /polynomial/ nonlinear
+linear state space systems (PNLSS).
+
+"""
+
+
 import numpy as np
 from numpy.fft import fft
 from scipy.interpolate import interp1d
 
 from .common import mmul_weight
 from .polynomial import multEdwdx, nl_terms, poly_deriv, combinations, select_active
-from .statespace import NonlinearStateSpace, StateSpaceIdent
+from .statespace import NonlinearStateSpace, StateSpaceOptimization
 
 
-"""
-PNLSS -- a collection of classes and functions for modeling nonlinear
-linear state space systems.
-"""
-
-
-class PNLSS(NonlinearStateSpace, StateSpaceIdent):
+class PNLSS(NonlinearStateSpace, StateSpaceOptimization):
+    """Polynomial nonlinear state space"""
     def __init__(self, *system, **kwargs):
         if len(system) == 1:  # and isinstance(system[0], StateSpace):
             sys = system
@@ -79,6 +81,47 @@ class PNLSS(NonlinearStateSpace, StateSpaceIdent):
 
     def jacobian(self, x0, weight=False):
         return jacobian(x0, self, weight=weight)
+
+    # XXX: NonlinearStateSpace is changed use NLSS module where nonlinearities
+    # are added as NLS objects. To keep back-wards compability with PNLSS,
+    # override extract and flatten.
+    def extract(self, x0):
+        """Extract state space from from flattened array"""
+        n, m, p = self.n, self.m, self.p
+        # index of active elements
+        xact = self.xactive
+        yact = self.yactive
+        ne = len(xact)
+        nf = len(yact)
+
+        E = self.E
+        F = self.F
+        A = x0.flat[:n**2].reshape((n,n))
+        B = x0.flat[n**2 + np.r_[:n*m]].reshape((n,m))
+        C = x0.flat[n**2+n*m + np.r_[:p*n]].reshape((p,n))
+        D = x0.flat[n*(p+m+n) + np.r_[:p*m]].reshape((p,m))
+        E.flat[xact] = x0.flat[n*(p+m+n)+p*m + np.r_[:ne]]
+        F.flat[yact] = x0.flat[n*(p+m+n)+p*m+ne + np.r_[:nf]]
+        return A, B, C, D, E, F
+
+    def flatten(self):
+        """Returns the state space as flattened array"""
+        xact = self.xactive
+        yact = self.yactive
+        ne = len(xact)
+        nf = len(yact)
+        n, m, p = self.n, self.m, self.p
+        npar = n**2 + n*m + p*n + p*m + ne + nf
+
+        x0 = np.empty(npar)
+        x0[:n**2] = self.A.ravel()
+        x0[n**2 + np.r_[:n*m]] = self.B.ravel()
+        x0[n**2 + n*m + np.r_[:n*p]] = self.C.ravel()
+        x0[n*(p+m+n) + np.r_[:p*m]] = self.D.ravel()
+        x0[n*(p+m+n)+p*m + np.r_[:ne]] = self.E.flat[xact]
+        x0[n*(p+m+n)+p*m+ne + np.r_[:nf]] = self.F.flat[yact]
+        return x0
+
 
 
 # https://github.com/scipy/scipy/blob/master/scipy/signal/ltisys.py
