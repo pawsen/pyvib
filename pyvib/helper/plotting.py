@@ -269,7 +269,7 @@ class Anim(object):
         ax.set_ylim((ymin, ymax))
         ax.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
 
-        plt.show(False)
+        plt.show(block=False)
         fig.canvas.draw()
 
         # cache the clean background
@@ -303,6 +303,10 @@ class Anim(object):
         dof = self.dof
         ax = self.ax
         fig = self.fig
+
+        # if the figure gets closed, just return immediately.
+        if not plt.fignum_exists(fig.number):
+            return
 
         x = np.asarray(x) * self.xscale
         y = np.asarray(y) * self.yscale
@@ -358,6 +362,7 @@ class Anim(object):
         ax.draw_artist(self.cur_point)
         # fill in the axes rectangle
         fig.canvas.blit(ax.bbox)
+        fig.canvas.flush_events()
 
     def plot_tangent(self, w0, x0, omega, x, show=True):
         """Plot the tangent directions to choose between for a BP bifurcation

@@ -39,7 +39,8 @@ par_hb ={
     'scale_t': 1,
     'amp0':1e-4,
     'xstr':'rad/s',
-    'sca':1
+    'sca':1,
+    'anim': True,
 }
 par_cont = {
     'omega_cont_min': f1*2*np.pi,
@@ -69,4 +70,4 @@ if savedata:
     print('data saved as {}'.format(filename))
 
 ffrf, ax = nfrc(dof=0, hb=hb, interactive=False, xscale=1, xunit='(rad/s)')
-plt.show()
+plt.show(block=True)
