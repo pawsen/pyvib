@@ -35,7 +35,7 @@ def periodicity(y, fs, dof=0, R=0, P=None, n=1, fig=None, ax=None,
     # assume the missing dimension is because there's only on realization
     if len(y.shape) == 3:
         y = y[:, :, None]
-    npp, _, _R, _P = y.shape
+    npp, _p, _R, _P = y.shape
     # always use last period as reference
     if P is None:
         P = np.r_[:_P]

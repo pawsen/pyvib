@@ -130,12 +130,12 @@ def dsample(y, q, zero_phase=True):
     for factor in drate:
         y = decimate(y, q=factor, ftype='fir', axis=0, zero_phase=zero_phase)
 
-    # Remove first period to eliminate the edge effects due to the low-pass
-    # filter.
     y = np.moveaxis(y.reshape(N, P, p, R, order='F'), 1, 3)
     if zero_phase:
         return y
     else:
+        # Remove first period to eliminate the edge effects due to the low-pass
+        # filter.
         return y[..., 1:]
 
 
