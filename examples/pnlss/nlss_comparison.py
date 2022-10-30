@@ -88,7 +88,7 @@ def simulate(true_model,npp=1024, Ntr=1, Rest=2, add_noise=False):
     # get predictable random numbers. https://dilbert.com/strip/2001-10-25
     np.random.seed(10)
     # shape of u from multisine: (R,P*npp)
-    u, lines, freq = multisine(N=npp, P=P, R=R, lines=kind, rms=RMSu)
+    u, lines, freq, t = multisine(N=npp, P=P, R=R, lines=kind, rms=RMSu)
     
     # Transient: Add Ntr periods before the start of each realization. To
     # generate steady state data.

@@ -89,7 +89,7 @@ if True:
     # get predictable random numbers. https://dilbert.com/strip/2001-10-25
     np.random.seed(10)
     # shape of u from multisine: (R,P*npp)
-    u, lines, freq = multisine(N=npp, P=P, R=R, lines=kind, rms=RMSu)
+    u, lines, freq, t = multisine(N=npp, P=P, R=R, lines=kind, rms=RMSu)
     # if multiple input is required, this will copy u m times
 
     # Transient: Add one period before the start of each realization. To generate

@@ -50,7 +50,7 @@ def load(nonlin):
     return sig(u,y,fs,fmin,fmax,iu-1,nper,nsper)
 
 lin = load(nonlin=False)
-slin = Signal(lin.u, lin.fs, lin.y)
+slin = Signal(u=lin.u, fs=lin.fs, y=lin.y)
 per = [4,5,6,7,8,9]
 slin.cut(lin.nsper, per)
 
@@ -82,7 +82,7 @@ fnsi.nl_coeff(lin.iu, nldof)
 
 # Load nonlinear signal
 nlin = load(nonlin=True)
-snlin = Signal(nlin.u, nlin.fs, nlin.y)
+snlin = Signal(u=nlin.u, fs=nlin.fs, y=nlin.y)
 snlin.cut(nlin.nsper, per)
 
 # Linear identification on nonlinear signal

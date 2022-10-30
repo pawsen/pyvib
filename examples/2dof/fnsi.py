@@ -8,12 +8,14 @@ from collections import namedtuple
 import pickle
 
 # pyvib.ation libraries
-from pyvib.signal import Signal
+from pyvib.signal import Signal_legacy
 from pyvib.fnsi import FNSI
 from pyvib.modal import modal_ac, frf_mkc
 from pyvib.helper.modal_plotting import (plot_knl, plot_frf, plot_svg)
 from pyvib.frf import periodic
 from pyvib.nlforce import NL_force, NL_polynomial, NL_spline
+
+from pyvib.nonlinear_elements import Polynomial
 
 # Parameters for 2dof model
 from parameters import par
@@ -37,8 +39,8 @@ dof = 0
 fmin = 0
 fmax = 5/2/np.pi
 # Setup the signal/extract periods
-slin = Signal(lin.u, lin.fs, lin.y)
-snlin = Signal(nlin.u, nlin.fs, nlin.y)
+slin = Signal_legacy(lin.u, lin.fs, lin.y)
+snlin = Signal_legacy(nlin.u, nlin.fs, nlin.y)
 
 # show periodicity, to select periods from
 if show_periodicity:
@@ -73,7 +75,17 @@ nlist = np.arange(2, nmax+3, 2)
 
 ## nonlinear identification at high level
 # Calculate stabilization diagram
-fnsi = FNSI(snlin, nl, idof, fmin, fmax)
+fnsi = FNSI()
+exponents = [3,3]
+w = np.array([[1,0,0,0], [0,1,0,0]])
+nly = [Polynomial(exponent=exponents, w=w)]
+fnsi.set_signal(slin)
+fnsi.add_nl(nly=nly)
+fnsi.estimate(n=2, r=5)
+fnsi.optimize(lamb=100, nmax=25)
+
+print("oh very good")
+
 fnsi.calc_EY()
 fnsi.svd_comp(ims)
 sd = fnsi.stabilization(nlist)

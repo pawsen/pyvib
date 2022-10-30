@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 import pickle
 from collections import namedtuple
 
-from pyvib.signal import Signal
+from pyvib.signal import Signal_legacy as Signal
 from pyvib.rfs import RFS
 
 Nm = namedtuple('Nm', 'y yd ydd u t finst fs')
 sweep1 = pickle.load(open('data/sweep1.pkl', 'rb'))
-#sweep2 = pickle.load(open(path + 'sweep2.pkl', 'rb'))
+# sweep2 = pickle.load(open('data/sweep2.pkl', 'rb'))
 
 signal = Signal(sweep1.u, sweep1.fs, sweep1.ydd)
 signal.set_signal(y=sweep1.y, yd=sweep1.yd, ydd=sweep1.ydd)
